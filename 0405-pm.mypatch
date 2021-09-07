@@ -1,0 +1,1661 @@
+From 14858dcc3b3587f4bb5c48e130ee7d68fc2b0a29 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 8 Jul 2021 15:25:06 +0200
+Subject: PCI: Use pci_update_current_state() in pci_enable_device_flags()
+
+Updating the current_state field of struct pci_dev the way it is done
+in pci_enable_device_flags() before calling do_pci_enable_device() may
+not work.  For example, if the given PCI device depends on an ACPI
+power resource whose _STA method initially returns 0 ("off"), but the
+config space of the PCI device is accessible and the power state
+retrieved from the PCI_PM_CTRL register is D0, the current_state
+field in the struct pci_dev representing that device will get out of
+sync with the power.state of its ACPI companion object and that will
+lead to power management issues going forward.
+
+To avoid such issues, make pci_enable_device_flags() call
+pci_update_current_state() which takes ACPI device power management
+into account, if present, to retrieve the current power state of the
+device.
+
+Link: https://lore.kernel.org/lkml/20210314000439.3138941-1-luzmaximilian@gmail.com/
+Reported-by: Maximilian Luz <luzmaximilian@gmail.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Tested-by: Maximilian Luz <luzmaximilian@gmail.com>
+---
+ drivers/pci/pci.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index aacf575c15cff..375d298659a42 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -1906,11 +1906,7 @@ static int pci_enable_device_flags(struct pci_dev *dev, unsigned long flags)
+ 	 * so that things like MSI message writing will behave as expected
+ 	 * (e.g. if the device really is in D0 at enable time).
+ 	 */
+-	if (dev->pm_cap) {
+-		u16 pmcsr;
+-		pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &pmcsr);
+-		dev->current_state = (pmcsr & PCI_PM_CTRL_STATE_MASK);
+-	}
++	pci_update_current_state(dev, dev->current_state);
+ 
+ 	if (atomic_inc_return(&dev->enable_cnt) > 1)
+ 		return 0;		/* already enabled */
+-- 
+cgit 1.2.3-1.el7
+
+
+From da9f2150684ea684a7ddd6d7f0e38b2bdf43dcd8 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 29 Jul 2021 17:54:28 +0200
+Subject: PCI: PM: Avoid forcing PCI_D0 for wakeup reasons inconsistently
+
+It is inconsistent to return PCI_D0 from pci_target_state() instead
+of the original target state if 'wakeup' is true and the device
+cannot signal PME from D0.
+
+This only happens when the device cannot signal PME from the original
+target state and any shallower power states (including D0) and that
+case is effectively equivalent to the one in which PME singaling is
+not supported at all.  Since the original target state is returned in
+the latter case, make the function do that in the former one too.
+
+Link: https://lore.kernel.org/linux-pm/3149540.aeNJFYEL58@kreacher/
+Fixes: 666ff6f83e1d ("PCI/PM: Avoid using device_may_wakeup() for runtime PM")
+Reported-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+Reported-by: Utkarsh H Patel <utkarsh.h.patel@intel.com>
+Reported-by: Koba Ko <koba.ko@canonical.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Reviewed-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+Tested-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+---
+ drivers/pci/pci.c | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index 375d298659a42..2806f0ce4feef 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -2595,16 +2595,20 @@ static pci_power_t pci_target_state(struct pci_dev *dev, bool wakeup)
+ 	if (dev->current_state == PCI_D3cold)
+ 		target_state = PCI_D3cold;
+ 
+-	if (wakeup) {
++	if (wakeup && dev->pme_support) {
++		pci_power_t state = target_state;
++
+ 		/*
+ 		 * Find the deepest state from which the device can generate
+ 		 * PME#.
+ 		 */
+-		if (dev->pme_support) {
+-			while (target_state
+-			      && !(dev->pme_support & (1 << target_state)))
+-				target_state--;
+-		}
++		while (state && !(dev->pme_support & (1 << state)))
++			state--;
++
++		if (state)
++			return state;
++		else if (dev->pme_support & 1)
++			return PCI_D0;
+ 	}
+ 
+ 	return target_state;
+-- 
+cgit 1.2.3-1.el7
+
+
+From 0e00392a895c95c6d12d42158236c8862a2f43f2 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 29 Jul 2021 16:49:10 +0200
+Subject: PCI: PM: Enable PME if it can be signaled from D3cold
+
+PME signaling is only enabled by __pci_enable_wake() if the target
+device can signal PME from the given target power state (to avoid
+pointless reconfiguration of the device), but if the hierarchy above
+the device goes into D3cold, the device itself will end up in D3cold
+too, so if it can signal PME from D3cold, it should be enabled to
+do so in __pci_enable_wake().
+
+[Note that if the device does not end up in D3cold and it cannot
+ signal PME from the original target power state, it will not signal
+ PME, so in that case the behavior does not change.]
+
+Link: https://lore.kernel.org/linux-pm/3149540.aeNJFYEL58@kreacher/
+Fixes: 5bcc2fb4e815 ("PCI PM: Simplify PCI wake-up code")
+Reported-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+Reported-by: Utkarsh H Patel <utkarsh.h.patel@intel.com>
+Reported-by: Koba Ko <koba.ko@canonical.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Reviewed-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+Tested-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+---
+ drivers/pci/pci.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index 2806f0ce4feef..a5e6759c407b9 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -2491,7 +2491,14 @@ static int __pci_enable_wake(struct pci_dev *dev, pci_power_t state, bool enable
+ 	if (enable) {
+ 		int error;
+ 
+-		if (pci_pme_capable(dev, state))
++		/*
++		 * Enable PME signaling if the device can signal PME from
++		 * D3cold regardless of whether or not it can signal PME from
++		 * the current target state, because that will allow it to
++		 * signal PME when the hierarchy above it goes into D3cold and
++		 * the device itself ends up in D3cold as a result of that.
++		 */
++		if (pci_pme_capable(dev, state) || pci_pme_capable(dev, PCI_D3cold))
+ 			pci_pme_active(dev, true);
+ 		else
+ 			ret = 1;
+-- 
+cgit 1.2.3-1.el7
+
+
+From 5d4c779cb62e676aedc278de910b4bb8ef65a5cc Mon Sep 17 00:00:00 2001
+From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Date: Tue, 3 Aug 2021 16:16:01 +0200
+Subject: powercap: intel_rapl: Replace deprecated CPU-hotplug functions
+
+The functions get_online_cpus() and put_online_cpus() have been
+deprecated during the CPU hotplug rework. They map directly to
+cpus_read_lock() and cpus_read_unlock().
+
+Replace deprecated CPU-hotplug functions with the official version.
+The behavior remains unchanged.
+
+Signed-off-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/powercap/intel_rapl_common.c | 50 ++++++++++++++++++------------------
+ 1 file changed, 25 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/powercap/intel_rapl_common.c b/drivers/powercap/intel_rapl_common.c
+index 73cf68af97700..7c0099e7a6d72 100644
+--- a/drivers/powercap/intel_rapl_common.c
++++ b/drivers/powercap/intel_rapl_common.c
+@@ -158,16 +158,16 @@ static int get_energy_counter(struct powercap_zone *power_zone,
+ 	/* prevent CPU hotplug, make sure the RAPL domain does not go
+ 	 * away while reading the counter.
+ 	 */
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 
+ 	if (!rapl_read_data_raw(rd, ENERGY_COUNTER, true, &energy_now)) {
+ 		*energy_raw = energy_now;
+-		put_online_cpus();
++		cpus_read_unlock();
+ 
+ 		return 0;
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return -EIO;
+ }
+@@ -216,11 +216,11 @@ static int set_domain_enable(struct powercap_zone *power_zone, bool mode)
+ 	if (rd->state & DOMAIN_STATE_BIOS_LOCKED)
+ 		return -EACCES;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rapl_write_data_raw(rd, PL1_ENABLE, mode);
+ 	if (rapl_defaults->set_floor_freq)
+ 		rapl_defaults->set_floor_freq(rd, mode);
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return 0;
+ }
+@@ -234,13 +234,13 @@ static int get_domain_enable(struct powercap_zone *power_zone, bool *mode)
+ 		*mode = false;
+ 		return 0;
+ 	}
+-	get_online_cpus();
++	cpus_read_lock();
+ 	if (rapl_read_data_raw(rd, PL1_ENABLE, true, &val)) {
+-		put_online_cpus();
++		cpus_read_unlock();
+ 		return -EIO;
+ 	}
+ 	*mode = val;
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return 0;
+ }
+@@ -317,7 +317,7 @@ static int set_power_limit(struct powercap_zone *power_zone, int cid,
+ 	int ret = 0;
+ 	int id;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 	id = contraint_to_pl(rd, cid);
+ 	if (id < 0) {
+@@ -350,7 +350,7 @@ static int set_power_limit(struct powercap_zone *power_zone, int cid,
+ 	if (!ret)
+ 		package_power_limit_irq_save(rp);
+ set_exit:
+-	put_online_cpus();
++	cpus_read_unlock();
+ 	return ret;
+ }
+ 
+@@ -363,7 +363,7 @@ static int get_current_power_limit(struct powercap_zone *power_zone, int cid,
+ 	int ret = 0;
+ 	int id;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 	id = contraint_to_pl(rd, cid);
+ 	if (id < 0) {
+@@ -382,7 +382,7 @@ static int get_current_power_limit(struct powercap_zone *power_zone, int cid,
+ 		prim = POWER_LIMIT4;
+ 		break;
+ 	default:
+-		put_online_cpus();
++		cpus_read_unlock();
+ 		return -EINVAL;
+ 	}
+ 	if (rapl_read_data_raw(rd, prim, true, &val))
+@@ -391,7 +391,7 @@ static int get_current_power_limit(struct powercap_zone *power_zone, int cid,
+ 		*data = val;
+ 
+ get_exit:
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return ret;
+ }
+@@ -403,7 +403,7 @@ static int set_time_window(struct powercap_zone *power_zone, int cid,
+ 	int ret = 0;
+ 	int id;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 	id = contraint_to_pl(rd, cid);
+ 	if (id < 0) {
+@@ -423,7 +423,7 @@ static int set_time_window(struct powercap_zone *power_zone, int cid,
+ 	}
+ 
+ set_time_exit:
+-	put_online_cpus();
++	cpus_read_unlock();
+ 	return ret;
+ }
+ 
+@@ -435,7 +435,7 @@ static int get_time_window(struct powercap_zone *power_zone, int cid,
+ 	int ret = 0;
+ 	int id;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 	id = contraint_to_pl(rd, cid);
+ 	if (id < 0) {
+@@ -458,14 +458,14 @@ static int get_time_window(struct powercap_zone *power_zone, int cid,
+ 		val = 0;
+ 		break;
+ 	default:
+-		put_online_cpus();
++		cpus_read_unlock();
+ 		return -EINVAL;
+ 	}
+ 	if (!ret)
+ 		*data = val;
+ 
+ get_time_exit:
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return ret;
+ }
+@@ -491,7 +491,7 @@ static int get_max_power(struct powercap_zone *power_zone, int id, u64 *data)
+ 	int prim;
+ 	int ret = 0;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	rd = power_zone_to_rapl_domain(power_zone);
+ 	switch (rd->rpl[id].prim_id) {
+ 	case PL1_ENABLE:
+@@ -504,7 +504,7 @@ static int get_max_power(struct powercap_zone *power_zone, int id, u64 *data)
+ 		prim = MAX_POWER;
+ 		break;
+ 	default:
+-		put_online_cpus();
++		cpus_read_unlock();
+ 		return -EINVAL;
+ 	}
+ 	if (rapl_read_data_raw(rd, prim, true, &val))
+@@ -516,7 +516,7 @@ static int get_max_power(struct powercap_zone *power_zone, int id, u64 *data)
+ 	if (rd->rpl[id].prim_id == PL4_ENABLE)
+ 		*data = *data * 2;
+ 
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return ret;
+ }
+@@ -1358,7 +1358,7 @@ static void power_limit_state_save(void)
+ 	struct rapl_domain *rd;
+ 	int nr_pl, ret, i;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	list_for_each_entry(rp, &rapl_packages, plist) {
+ 		if (!rp->power_zone)
+ 			continue;
+@@ -1390,7 +1390,7 @@ static void power_limit_state_save(void)
+ 			}
+ 		}
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ }
+ 
+ static void power_limit_state_restore(void)
+@@ -1399,7 +1399,7 @@ static void power_limit_state_restore(void)
+ 	struct rapl_domain *rd;
+ 	int nr_pl, i;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	list_for_each_entry(rp, &rapl_packages, plist) {
+ 		if (!rp->power_zone)
+ 			continue;
+@@ -1425,7 +1425,7 @@ static void power_limit_state_restore(void)
+ 			}
+ 		}
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ }
+ 
+ static int rapl_pm_callback(struct notifier_block *nb,
+-- 
+cgit 1.2.3-1.el7
+
+
+From 09681a0772f773dddffd3c2d1796c87bd0d903b9 Mon Sep 17 00:00:00 2001
+From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Date: Tue, 3 Aug 2021 16:16:11 +0200
+Subject: cpufreq: Replace deprecated CPU-hotplug functions
+
+The functions get_online_cpus() and put_online_cpus() have been
+deprecated during the CPU hotplug rework. They map directly to
+cpus_read_lock() and cpus_read_unlock().
+
+Replace deprecated CPU-hotplug functions with the official version.
+The behavior remains unchanged.
+
+Signed-off-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/acpi-cpufreq.c     | 4 ++--
+ drivers/cpufreq/cpufreq.c          | 6 +++---
+ drivers/cpufreq/cpufreq_ondemand.c | 4 ++--
+ drivers/cpufreq/intel_pstate.c     | 4 ++--
+ drivers/cpufreq/powernow-k8.c      | 6 +++---
+ drivers/cpufreq/powernv-cpufreq.c  | 4 ++--
+ 6 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/cpufreq/acpi-cpufreq.c b/drivers/cpufreq/acpi-cpufreq.c
+index 7e7450453714d..b49612895c786 100644
+--- a/drivers/cpufreq/acpi-cpufreq.c
++++ b/drivers/cpufreq/acpi-cpufreq.c
+@@ -163,9 +163,9 @@ static ssize_t store_cpb(struct cpufreq_policy *policy, const char *buf,
+ 	if (ret || val > 1)
+ 		return -EINVAL;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	set_boost(policy, val);
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return count;
+ }
+diff --git a/drivers/cpufreq/cpufreq.c b/drivers/cpufreq/cpufreq.c
+index 45f3416988f1a..06c526d66dd38 100644
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -2654,18 +2654,18 @@ int cpufreq_boost_trigger_state(int state)
+ 	cpufreq_driver->boost_enabled = state;
+ 	write_unlock_irqrestore(&cpufreq_driver_lock, flags);
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	for_each_active_policy(policy) {
+ 		ret = cpufreq_driver->set_boost(policy, state);
+ 		if (ret)
+ 			goto err_reset_state;
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	return 0;
+ 
+ err_reset_state:
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	write_lock_irqsave(&cpufreq_driver_lock, flags);
+ 	cpufreq_driver->boost_enabled = !state;
+diff --git a/drivers/cpufreq/cpufreq_ondemand.c b/drivers/cpufreq/cpufreq_ondemand.c
+index ac361a8b1d3bb..eb4320b619c9c 100644
+--- a/drivers/cpufreq/cpufreq_ondemand.c
++++ b/drivers/cpufreq/cpufreq_ondemand.c
+@@ -418,7 +418,7 @@ static void od_set_powersave_bias(unsigned int powersave_bias)
+ 	default_powersave_bias = powersave_bias;
+ 	cpumask_clear(&done);
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	for_each_online_cpu(cpu) {
+ 		struct cpufreq_policy *policy;
+ 		struct policy_dbs_info *policy_dbs;
+@@ -442,7 +442,7 @@ static void od_set_powersave_bias(unsigned int powersave_bias)
+ 		od_tuners = dbs_data->tuners;
+ 		od_tuners->powersave_bias = default_powersave_bias;
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ }
+ 
+ void od_register_powersave_bias_handler(unsigned int (*f)
+diff --git a/drivers/cpufreq/intel_pstate.c b/drivers/cpufreq/intel_pstate.c
+index bb4549959b113..2d83a9f9651b0 100644
+--- a/drivers/cpufreq/intel_pstate.c
++++ b/drivers/cpufreq/intel_pstate.c
+@@ -2969,7 +2969,7 @@ static void intel_pstate_driver_cleanup(void)
+ {
+ 	unsigned int cpu;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	for_each_online_cpu(cpu) {
+ 		if (all_cpu_data[cpu]) {
+ 			if (intel_pstate_driver == &intel_pstate)
+@@ -2979,7 +2979,7 @@ static void intel_pstate_driver_cleanup(void)
+ 			all_cpu_data[cpu] = NULL;
+ 		}
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	intel_pstate_driver = NULL;
+ }
+diff --git a/drivers/cpufreq/powernow-k8.c b/drivers/cpufreq/powernow-k8.c
+index b9ccb6a3dad98..12ab4014af712 100644
+--- a/drivers/cpufreq/powernow-k8.c
++++ b/drivers/cpufreq/powernow-k8.c
+@@ -1180,7 +1180,7 @@ static int powernowk8_init(void)
+ 	if (!x86_match_cpu(powernow_k8_ids))
+ 		return -ENODEV;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	for_each_online_cpu(i) {
+ 		smp_call_function_single(i, check_supported_cpu, &ret, 1);
+ 		if (!ret)
+@@ -1188,10 +1188,10 @@ static int powernowk8_init(void)
+ 	}
+ 
+ 	if (supported_cpus != num_online_cpus()) {
+-		put_online_cpus();
++		cpus_read_unlock();
+ 		return -ENODEV;
+ 	}
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	ret = cpufreq_register_driver(&cpufreq_amd64_driver);
+ 	if (ret)
+diff --git a/drivers/cpufreq/powernv-cpufreq.c b/drivers/cpufreq/powernv-cpufreq.c
+index 005600cef2730..23a06cba392cd 100644
+--- a/drivers/cpufreq/powernv-cpufreq.c
++++ b/drivers/cpufreq/powernv-cpufreq.c
+@@ -918,7 +918,7 @@ static void powernv_cpufreq_work_fn(struct work_struct *work)
+ 	unsigned int cpu;
+ 	cpumask_t mask;
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	cpumask_and(&mask, &chip->mask, cpu_online_mask);
+ 	smp_call_function_any(&mask,
+ 			      powernv_cpufreq_throttle_check, NULL, 0);
+@@ -939,7 +939,7 @@ static void powernv_cpufreq_work_fn(struct work_struct *work)
+ 		cpufreq_cpu_put(policy);
+ 	}
+ out:
+-	put_online_cpus();
++	cpus_read_unlock();
+ }
+ 
+ static int powernv_cpufreq_occ_msg(struct notifier_block *nb,
+-- 
+cgit 1.2.3-1.el7
+
+
+From d2c8cce647f3022d5960a3bf2b50a2da341d9c8b Mon Sep 17 00:00:00 2001
+From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Date: Tue, 3 Aug 2021 16:16:13 +0200
+Subject: PM: sleep: s2idle: Replace deprecated CPU-hotplug functions
+
+The functions get_online_cpus() and put_online_cpus() have been
+deprecated during the CPU hotplug rework. They map directly to
+cpus_read_lock() and cpus_read_unlock().
+
+Replace deprecated CPU-hotplug functions with the official version.
+The behavior remains unchanged.
+
+Signed-off-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ kernel/power/suspend.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
+index d8cae434f9eb5..eb75f394a0590 100644
+--- a/kernel/power/suspend.c
++++ b/kernel/power/suspend.c
+@@ -96,7 +96,7 @@ static void s2idle_enter(void)
+ 	s2idle_state = S2IDLE_STATE_ENTER;
+ 	raw_spin_unlock_irq(&s2idle_lock);
+ 
+-	get_online_cpus();
++	cpus_read_lock();
+ 	cpuidle_resume();
+ 
+ 	/* Push all the CPUs into the idle loop. */
+@@ -106,7 +106,7 @@ static void s2idle_enter(void)
+ 		    s2idle_state == S2IDLE_STATE_WAKE);
+ 
+ 	cpuidle_pause();
+-	put_online_cpus();
++	cpus_read_unlock();
+ 
+ 	raw_spin_lock_irq(&s2idle_lock);
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From 4fac49fd0a349aa3afb3ad7ec778a00592c7ab59 Mon Sep 17 00:00:00 2001
+From: Alexandre Belloni <alexandre.belloni@bootlin.com>
+Date: Wed, 4 Aug 2021 12:44:07 +0200
+Subject: PM: sleep: check RTC features instead of ops in suspend_test
+
+Test RTC_FEATURE_ALARM instead of relying on ops->set_alarm to know whether
+alarms are available.
+
+Signed-off-by: Alexandre Belloni <alexandre.belloni@bootlin.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ kernel/power/suspend_test.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/power/suspend_test.c b/kernel/power/suspend_test.c
+index e1ed58adb69e4..d20526c5be15b 100644
+--- a/kernel/power/suspend_test.c
++++ b/kernel/power/suspend_test.c
+@@ -129,7 +129,7 @@ static int __init has_wakealarm(struct device *dev, const void *data)
+ {
+ 	struct rtc_device *candidate = to_rtc_device(dev);
+ 
+-	if (!candidate->ops->set_alarm)
++	if (!test_bit(RTC_FEATURE_ALARM, candidate->features))
+ 		return 0;
+ 	if (!device_may_wakeup(candidate->dev.parent))
+ 		return 0;
+-- 
+cgit 1.2.3-1.el7
+
+
+From 7fcc17d0cb12938d2b3507973a6f93fc9ed2c7a1 Mon Sep 17 00:00:00 2001
+From: Lukasz Luba <lukasz.luba@arm.com>
+Date: Tue, 3 Aug 2021 11:27:43 +0100
+Subject: PM: EM: Increase energy calculation precision
+
+The Energy Model (EM) provides useful information about device power in
+each performance state to other subsystems like: Energy Aware Scheduler
+(EAS). The energy calculation in EAS does arithmetic operation based on
+the EM em_cpu_energy(). Current implementation of that function uses
+em_perf_state::cost as a pre-computed cost coefficient equal to:
+cost = power * max_frequency / frequency.
+The 'power' is expressed in milli-Watts (or in abstract scale).
+
+There are corner cases when the EAS energy calculation for two Performance
+Domains (PDs) return the same value. The EAS compares these values to
+choose smaller one. It might happen that this values are equal due to
+rounding error. In such scenario, we need better resolution, e.g. 1000
+times better. To provide this possibility increase the resolution in the
+em_perf_state::cost for 64-bit architectures. The cost of increasing
+resolution on 32-bit is pretty high (64-bit division) and is not justified
+since there are no new 32bit big.LITTLE EAS systems expected which would
+benefit from this higher resolution.
+
+This patch allows to avoid the rounding to milli-Watt errors, which might
+occur in EAS energy estimation for each PD. The rounding error is common
+for small tasks which have small utilization value.
+
+There are two places in the code where it makes a difference:
+1. In the find_energy_efficient_cpu() where we are searching for
+best_delta. We might suffer there when two PDs return the same result,
+like in the example below.
+
+Scenario:
+Low utilized system e.g. ~200 sum_util for PD0 and ~220 for PD1. There
+are quite a few small tasks ~10-15 util. These tasks would suffer for
+the rounding error. These utilization values are typical when running games
+on Android. One of our partners has reported 5..10mA less battery drain
+when running with increased resolution.
+
+Some details:
+We have two PDs: PD0 (big) and PD1 (little)
+Let's compare w/o patch set ('old') and w/ patch set ('new')
+We are comparing energy w/ task and w/o task placed in the PDs
+
+a) 'old' w/o patch set, PD0
+task_util = 13
+cost = 480
+sum_util_w/o_task = 215
+sum_util_w_task = 228
+scale_cpu = 1024
+energy_w/o_task = 480 * 215 / 1024 = 100.78 => 100
+energy_w_task = 480 * 228 / 1024 = 106.87 => 106
+energy_diff = 106 - 100 = 6
+(this is equal to 'old' PD1's energy_diff in 'c)')
+
+b) 'new' w/ patch set, PD0
+task_util = 13
+cost = 480 * 1000 = 480000
+sum_util_w/o_task = 215
+sum_util_w_task = 228
+energy_w/o_task = 480000 * 215 / 1024 = 100781
+energy_w_task = 480000 * 228 / 1024  = 106875
+energy_diff = 106875 - 100781 = 6094
+(this is not equal to 'new' PD1's energy_diff in 'd)')
+
+c) 'old' w/o patch set, PD1
+task_util = 13
+cost = 160
+sum_util_w/o_task = 283
+sum_util_w_task = 293
+scale_cpu = 355
+energy_w/o_task = 160 * 283 / 355 = 127.55 => 127
+energy_w_task = 160 * 296 / 355 = 133.41 => 133
+energy_diff = 133 - 127 = 6
+(this is equal to 'old' PD0's energy_diff in 'a)')
+
+d) 'new' w/ patch set, PD1
+task_util = 13
+cost = 160 * 1000 = 160000
+sum_util_w/o_task = 283
+sum_util_w_task = 293
+scale_cpu = 355
+energy_w/o_task = 160000 * 283 / 355 = 127549
+energy_w_task = 160000 * 296 / 355 =   133408
+energy_diff = 133408 - 127549 = 5859
+(this is not equal to 'new' PD0's energy_diff in 'b)')
+
+2. Difference in the 6% energy margin filter at the end of
+find_energy_efficient_cpu(). With this patch the margin comparison also
+has better resolution, so it's possible to have better task placement
+thanks to that.
+
+Fixes: 27871f7a8a341ef ("PM: Introduce an Energy Model management framework")
+Reported-by: CCJ Yeh <CCj.Yeh@mediatek.com>
+Reviewed-by: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Signed-off-by: Lukasz Luba <lukasz.luba@arm.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ include/linux/energy_model.h | 16 ++++++++++++++++
+ kernel/power/energy_model.c  |  4 +++-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/energy_model.h b/include/linux/energy_model.h
+index 3f221dbf5f95d..1834752c56175 100644
+--- a/include/linux/energy_model.h
++++ b/include/linux/energy_model.h
+@@ -53,6 +53,22 @@ struct em_perf_domain {
+ #ifdef CONFIG_ENERGY_MODEL
+ #define EM_MAX_POWER 0xFFFF
+ 
++/*
++ * Increase resolution of energy estimation calculations for 64-bit
++ * architectures. The extra resolution improves decision made by EAS for the
++ * task placement when two Performance Domains might provide similar energy
++ * estimation values (w/o better resolution the values could be equal).
++ *
++ * We increase resolution only if we have enough bits to allow this increased
++ * resolution (i.e. 64-bit). The costs for increasing resolution when 32-bit
++ * are pretty high and the returns do not justify the increased costs.
++ */
++#ifdef CONFIG_64BIT
++#define em_scale_power(p) ((p) * 1000)
++#else
++#define em_scale_power(p) (p)
++#endif
++
+ struct em_data_callback {
+ 	/**
+ 	 * active_power() - Provide power at the next performance state of
+diff --git a/kernel/power/energy_model.c b/kernel/power/energy_model.c
+index 0f4530b3a8cd9..a332ccd829e24 100644
+--- a/kernel/power/energy_model.c
++++ b/kernel/power/energy_model.c
+@@ -170,7 +170,9 @@ static int em_create_perf_table(struct device *dev, struct em_perf_domain *pd,
+ 	/* Compute the cost of each performance state. */
+ 	fmax = (u64) table[nr_states - 1].frequency;
+ 	for (i = 0; i < nr_states; i++) {
+-		table[i].cost = div64_u64(fmax * table[i].power,
++		unsigned long power_res = em_scale_power(table[i].power);
++
++		table[i].cost = div64_u64(fmax * power_res,
+ 					  table[i].frequency);
+ 	}
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From e5c6b312ce3cc97e90ea159446e6bfa06645364d Mon Sep 17 00:00:00 2001
+From: Kevin Hao <haokexin@gmail.com>
+Date: Thu, 5 Aug 2021 15:29:17 +0800
+Subject: cpufreq: schedutil: Use kobject release() method to free
+ sugov_tunables
+
+The struct sugov_tunables is protected by the kobject, so we can't free
+it directly. Otherwise we would get a call trace like this:
+  ODEBUG: free active (active state 0) object type: timer_list hint: delayed_work_timer_fn+0x0/0x30
+  WARNING: CPU: 3 PID: 720 at lib/debugobjects.c:505 debug_print_object+0xb8/0x100
+  Modules linked in:
+  CPU: 3 PID: 720 Comm: a.sh Tainted: G        W         5.14.0-rc1-next-20210715-yocto-standard+ #507
+  Hardware name: Marvell OcteonTX CN96XX board (DT)
+  pstate: 40400009 (nZcv daif +PAN -UAO -TCO BTYPE=--)
+  pc : debug_print_object+0xb8/0x100
+  lr : debug_print_object+0xb8/0x100
+  sp : ffff80001ecaf910
+  x29: ffff80001ecaf910 x28: ffff00011b10b8d0 x27: ffff800011043d80
+  x26: ffff00011a8f0000 x25: ffff800013cb3ff0 x24: 0000000000000000
+  x23: ffff80001142aa68 x22: ffff800011043d80 x21: ffff00010de46f20
+  x20: ffff800013c0c520 x19: ffff800011d8f5b0 x18: 0000000000000010
+  x17: 6e6968207473696c x16: 5f72656d6974203a x15: 6570797420746365
+  x14: 6a626f2029302065 x13: 303378302f307830 x12: 2b6e665f72656d69
+  x11: ffff8000124b1560 x10: ffff800012331520 x9 : ffff8000100ca6b0
+  x8 : 000000000017ffe8 x7 : c0000000fffeffff x6 : 0000000000000001
+  x5 : ffff800011d8c000 x4 : ffff800011d8c740 x3 : 0000000000000000
+  x2 : ffff0001108301c0 x1 : ab3c90eedf9c0f00 x0 : 0000000000000000
+  Call trace:
+   debug_print_object+0xb8/0x100
+   __debug_check_no_obj_freed+0x1c0/0x230
+   debug_check_no_obj_freed+0x20/0x88
+   slab_free_freelist_hook+0x154/0x1c8
+   kfree+0x114/0x5d0
+   sugov_exit+0xbc/0xc0
+   cpufreq_exit_governor+0x44/0x90
+   cpufreq_set_policy+0x268/0x4a8
+   store_scaling_governor+0xe0/0x128
+   store+0xc0/0xf0
+   sysfs_kf_write+0x54/0x80
+   kernfs_fop_write_iter+0x128/0x1c0
+   new_sync_write+0xf0/0x190
+   vfs_write+0x2d4/0x478
+   ksys_write+0x74/0x100
+   __arm64_sys_write+0x24/0x30
+   invoke_syscall.constprop.0+0x54/0xe0
+   do_el0_svc+0x64/0x158
+   el0_svc+0x2c/0xb0
+   el0t_64_sync_handler+0xb0/0xb8
+   el0t_64_sync+0x198/0x19c
+  irq event stamp: 5518
+  hardirqs last  enabled at (5517): [<ffff8000100cbd7c>] console_unlock+0x554/0x6c8
+  hardirqs last disabled at (5518): [<ffff800010fc0638>] el1_dbg+0x28/0xa0
+  softirqs last  enabled at (5504): [<ffff8000100106e0>] __do_softirq+0x4d0/0x6c0
+  softirqs last disabled at (5483): [<ffff800010049548>] irq_exit+0x1b0/0x1b8
+
+So split the original sugov_tunables_free() into two functions,
+sugov_clear_global_tunables() is just used to clear the global_tunables
+and the new sugov_tunables_free() is used as kobj_type::release to
+release the sugov_tunables safely.
+
+Fixes: 9bdcb44e391d ("cpufreq: schedutil: New governor based on scheduler utilization data")
+Cc: 4.7+ <stable@vger.kernel.org> # 4.7+
+Signed-off-by: Kevin Hao <haokexin@gmail.com>
+Acked-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ kernel/sched/cpufreq_schedutil.c | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/sched/cpufreq_schedutil.c b/kernel/sched/cpufreq_schedutil.c
+index 57124614363df..e7af18857371e 100644
+--- a/kernel/sched/cpufreq_schedutil.c
++++ b/kernel/sched/cpufreq_schedutil.c
+@@ -537,9 +537,17 @@ static struct attribute *sugov_attrs[] = {
+ };
+ ATTRIBUTE_GROUPS(sugov);
+ 
++static void sugov_tunables_free(struct kobject *kobj)
++{
++	struct gov_attr_set *attr_set = container_of(kobj, struct gov_attr_set, kobj);
++
++	kfree(to_sugov_tunables(attr_set));
++}
++
+ static struct kobj_type sugov_tunables_ktype = {
+ 	.default_groups = sugov_groups,
+ 	.sysfs_ops = &governor_sysfs_ops,
++	.release = &sugov_tunables_free,
+ };
+ 
+ /********************** cpufreq governor interface *********************/
+@@ -639,12 +647,10 @@ static struct sugov_tunables *sugov_tunables_alloc(struct sugov_policy *sg_polic
+ 	return tunables;
+ }
+ 
+-static void sugov_tunables_free(struct sugov_tunables *tunables)
++static void sugov_clear_global_tunables(void)
+ {
+ 	if (!have_governor_per_policy())
+ 		global_tunables = NULL;
+-
+-	kfree(tunables);
+ }
+ 
+ static int sugov_init(struct cpufreq_policy *policy)
+@@ -707,7 +713,7 @@ out:
+ fail:
+ 	kobject_put(&tunables->attr_set.kobj);
+ 	policy->governor_data = NULL;
+-	sugov_tunables_free(tunables);
++	sugov_clear_global_tunables();
+ 
+ stop_kthread:
+ 	sugov_kthread_stop(sg_policy);
+@@ -734,7 +740,7 @@ static void sugov_exit(struct cpufreq_policy *policy)
+ 	count = gov_attr_set_put(&tunables->attr_set, &sg_policy->tunables_hook);
+ 	policy->governor_data = NULL;
+ 	if (!count)
+-		sugov_tunables_free(tunables);
++		sugov_clear_global_tunables();
+ 
+ 	mutex_unlock(&global_tunables_lock);
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From 020d86fc0df8b865f6dc168d88a7c2dccabd0a9e Mon Sep 17 00:00:00 2001
+From: Rajendra Nayak <rnayak@codeaurora.org>
+Date: Thu, 12 Aug 2021 16:57:20 +0530
+Subject: opp: Don't print an error if required-opps is missing
+
+The 'required-opps' property is considered optional, hence remove
+the pr_err() in of_parse_required_opp() when we find the property is
+missing.
+While at it, also fix the return value of
+of_get_required_opp_performance_state() when of_parse_required_opp()
+fails, return a -ENODEV instead of the -EINVAL.
+
+Signed-off-by: Rajendra Nayak <rnayak@codeaurora.org>
+Reviewed-by: Ulf Hansson <ulf.hansson@linaro.org>
+Acked-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/opp/of.c | 12 ++----------
+ 1 file changed, 2 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/opp/of.c b/drivers/opp/of.c
+index d298e38aaf7ef..9bdabad11ca5c 100644
+--- a/drivers/opp/of.c
++++ b/drivers/opp/of.c
+@@ -95,15 +95,7 @@ static struct dev_pm_opp *_find_opp_of_np(struct opp_table *opp_table,
+ static struct device_node *of_parse_required_opp(struct device_node *np,
+ 						 int index)
+ {
+-	struct device_node *required_np;
+-
+-	required_np = of_parse_phandle(np, "required-opps", index);
+-	if (unlikely(!required_np)) {
+-		pr_err("%s: Unable to parse required-opps: %pOF, index: %d\n",
+-		       __func__, np, index);
+-	}
+-
+-	return required_np;
++	return of_parse_phandle(np, "required-opps", index);
+ }
+ 
+ /* The caller must call dev_pm_opp_put_opp_table() after the table is used */
+@@ -1327,7 +1319,7 @@ int of_get_required_opp_performance_state(struct device_node *np, int index)
+ 
+ 	required_np = of_parse_required_opp(np, index);
+ 	if (!required_np)
+-		return -EINVAL;
++		return -ENODEV;
+ 
+ 	opp_table = _find_table_of_opp_np(required_np);
+ 	if (IS_ERR(opp_table)) {
+-- 
+cgit 1.2.3-1.el7
+
+
+From c016baf7dc58e77acdedb2c75dac2b41b77bcf70 Mon Sep 17 00:00:00 2001
+From: Rajendra Nayak <rnayak@codeaurora.org>
+Date: Thu, 12 Aug 2021 16:57:21 +0530
+Subject: PM: domains: Add support for 'required-opps' to set default perf
+ state
+
+Some devices within power domains with performance states do not
+support DVFS, but still need to vote on a default/static state
+while they are active. They can express this using the 'required-opps'
+property in device tree, which points to the phandle of the OPP
+supported by the corresponding power-domains.
+
+Add support to parse this information from DT and then set the
+specified performance state during attach and drop it on detach.
+runtime suspend/resume callbacks already have logic to drop/set
+the vote as needed and should take care of dropping the default
+perf state vote on runtime suspend and restore it back on runtime
+resume.
+
+Signed-off-by: Rajendra Nayak <rnayak@codeaurora.org>
+Reviewed-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/base/power/domain.c | 30 ++++++++++++++++++++++++++++--
+ include/linux/pm_domain.h   |  1 +
+ 2 files changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/base/power/domain.c b/drivers/base/power/domain.c
+index a934c679e6ce6..e1c8994ae225e 100644
+--- a/drivers/base/power/domain.c
++++ b/drivers/base/power/domain.c
+@@ -2598,6 +2598,12 @@ static void genpd_dev_pm_detach(struct device *dev, bool power_off)
+ 
+ 	dev_dbg(dev, "removing from PM domain %s\n", pd->name);
+ 
++	/* Drop the default performance state */
++	if (dev_gpd_data(dev)->default_pstate) {
++		dev_pm_genpd_set_performance_state(dev, 0);
++		dev_gpd_data(dev)->default_pstate = 0;
++	}
++
+ 	for (i = 1; i < GENPD_RETRY_MAX_MS; i <<= 1) {
+ 		ret = genpd_remove_device(pd, dev);
+ 		if (ret != -EAGAIN)
+@@ -2637,6 +2643,7 @@ static int __genpd_dev_pm_attach(struct device *dev, struct device *base_dev,
+ {
+ 	struct of_phandle_args pd_args;
+ 	struct generic_pm_domain *pd;
++	int pstate;
+ 	int ret;
+ 
+ 	ret = of_parse_phandle_with_args(dev->of_node, "power-domains",
+@@ -2675,10 +2682,29 @@ static int __genpd_dev_pm_attach(struct device *dev, struct device *base_dev,
+ 		genpd_unlock(pd);
+ 	}
+ 
+-	if (ret)
++	if (ret) {
+ 		genpd_remove_device(pd, dev);
++		return -EPROBE_DEFER;
++	}
+ 
+-	return ret ? -EPROBE_DEFER : 1;
++	/* Set the default performance state */
++	pstate = of_get_required_opp_performance_state(dev->of_node, index);
++	if (pstate < 0 && pstate != -ENODEV) {
++		ret = pstate;
++		goto err;
++	} else if (pstate > 0) {
++		ret = dev_pm_genpd_set_performance_state(dev, pstate);
++		if (ret)
++			goto err;
++		dev_gpd_data(dev)->default_pstate = pstate;
++	}
++	return 1;
++
++err:
++	dev_err(dev, "failed to set required performance state for power-domain %s: %d\n",
++		pd->name, ret);
++	genpd_remove_device(pd, dev);
++	return ret;
+ }
+ 
+ /**
+diff --git a/include/linux/pm_domain.h b/include/linux/pm_domain.h
+index 21a0577305ef4..67017c9390c87 100644
+--- a/include/linux/pm_domain.h
++++ b/include/linux/pm_domain.h
+@@ -198,6 +198,7 @@ struct generic_pm_domain_data {
+ 	struct notifier_block *power_nb;
+ 	int cpu;
+ 	unsigned int performance_state;
++	unsigned int default_pstate;
+ 	unsigned int rpm_pstate;
+ 	ktime_t	next_wakeup;
+ 	void *data;
+-- 
+cgit 1.2.3-1.el7
+
+
+From 80d4a82e1db819b33742c89917127f4c428e1c98 Mon Sep 17 00:00:00 2001
+From: Rajendra Nayak <rnayak@codeaurora.org>
+Date: Thu, 12 Aug 2021 16:57:22 +0530
+Subject: arm64: dts: sc7180: Add required-opps for i2c
+
+qup-i2c devices on sc7180 are clocked with a fixed clock (19.2 MHz)
+Though qup-i2c does not support DVFS, it still needs to vote for a
+performance state on 'CX' to satisfy the 19.2 Mhz clock frequency
+requirement.
+
+Use 'required-opps' to pass this information from
+device tree, and also add the power-domains property to specify
+the CX power-domain.
+
+Signed-off-by: Rajendra Nayak <rnayak@codeaurora.org>
+Reviewed-by: Stephen Boyd <swboyd@chromium.org>
+Reviewed-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ arch/arm64/boot/dts/qcom/sc7180.dtsi | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc7180.dtsi b/arch/arm64/boot/dts/qcom/sc7180.dtsi
+index a9a052f8c63c8..e7f0e5cde4243 100644
+--- a/arch/arm64/boot/dts/qcom/sc7180.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7180.dtsi
+@@ -786,6 +786,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -838,6 +840,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -890,6 +894,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -924,6 +930,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -976,6 +984,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1010,6 +1020,8 @@
+ 						<&aggre1_noc MASTER_QUP_0 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1075,6 +1087,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1127,6 +1141,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1161,6 +1177,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1213,6 +1231,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1247,6 +1267,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+@@ -1299,6 +1321,8 @@
+ 						<&aggre2_noc MASTER_QUP_1 0 &mc_virt SLAVE_EBI1 0>;
+ 				interconnect-names = "qup-core", "qup-config",
+ 							"qup-memory";
++				power-domains = <&rpmhpd SC7180_CX>;
++				required-opps = <&rpmhpd_opp_low_svs>;
+ 				status = "disabled";
+ 			};
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From dbcfa7156f48ebb72dfc8f4e5d702af8ca1d4b3a Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Mon, 9 Aug 2021 18:44:42 -0700
+Subject: PM: sleep: unmark 'state' functions as kernel-doc
+
+Fix kernel-doc warnings in kernel/power/main.c by unmarking the
+comment block as kernel-doc notation. This eliminates the following
+kernel-doc warnings:
+
+kernel/power/main.c:593: warning: expecting prototype for state(). Prototype was for state_show() instead
+kernel/power/main.c:593: warning: Function parameter or member 'kobj' not described in 'state_show'
+kernel/power/main.c:593: warning: Function parameter or member 'attr' not described in 'state_show'
+kernel/power/main.c:593: warning: Function parameter or member 'buf' not described in 'state_show'
+
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ kernel/power/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/power/main.c b/kernel/power/main.c
+index 12c7e1bb442fd..44169f3081fdc 100644
+--- a/kernel/power/main.c
++++ b/kernel/power/main.c
+@@ -577,7 +577,7 @@ static inline void pm_print_times_init(void) {}
+ 
+ struct kobject *power_kobj;
+ 
+-/**
++/*
+  * state - control system sleep states.
+  *
+  * show() returns available sleep state labels, which may be "mem", "standby",
+-- 
+cgit 1.2.3-1.el7
+
+
+From b2f6662ac08d0e7c25574ce53623c71bdae9dd78 Mon Sep 17 00:00:00 2001
+From: Valentin Schneider <valentin.schneider@arm.com>
+Date: Wed, 11 Aug 2021 21:14:31 +0100
+Subject: PM: cpu: Make notifier chain use a raw_spinlock_t
+
+Invoking atomic_notifier_chain_notify() requires acquiring a spinlock_t,
+which can block under CONFIG_PREEMPT_RT. Notifications for members of the
+cpu_pm notification chain will be issued by the idle task, which can never
+block.
+
+Making *all* atomic_notifiers use a raw_spinlock is too big of a hammer, as
+only notifications issued by the idle task are problematic.
+
+Special-case cpu_pm_notifier_chain by kludging a raw_notifier and
+raw_spinlock_t together, matching the atomic_notifier behavior with a
+raw_spinlock_t.
+
+Fixes: 70d932985757 ("notifier: Fix broken error handling pattern")
+Signed-off-by: Valentin Schneider <valentin.schneider@arm.com>
+Acked-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ kernel/cpu_pm.c | 50 ++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 38 insertions(+), 12 deletions(-)
+
+diff --git a/kernel/cpu_pm.c b/kernel/cpu_pm.c
+index f7e1d0eccdbc6..246efc74e3f34 100644
+--- a/kernel/cpu_pm.c
++++ b/kernel/cpu_pm.c
+@@ -13,19 +13,32 @@
+ #include <linux/spinlock.h>
+ #include <linux/syscore_ops.h>
+ 
+-static ATOMIC_NOTIFIER_HEAD(cpu_pm_notifier_chain);
++/*
++ * atomic_notifiers use a spinlock_t, which can block under PREEMPT_RT.
++ * Notifications for cpu_pm will be issued by the idle task itself, which can
++ * never block, IOW it requires using a raw_spinlock_t.
++ */
++static struct {
++	struct raw_notifier_head chain;
++	raw_spinlock_t lock;
++} cpu_pm_notifier = {
++	.chain = RAW_NOTIFIER_INIT(cpu_pm_notifier.chain),
++	.lock  = __RAW_SPIN_LOCK_UNLOCKED(cpu_pm_notifier.lock),
++};
+ 
+ static int cpu_pm_notify(enum cpu_pm_event event)
+ {
+ 	int ret;
+ 
+ 	/*
+-	 * atomic_notifier_call_chain has a RCU read critical section, which
+-	 * could be disfunctional in cpu idle. Copy RCU_NONIDLE code to let
+-	 * RCU know this.
++	 * This introduces a RCU read critical section, which could be
++	 * disfunctional in cpu idle. Copy RCU_NONIDLE code to let RCU know
++	 * this.
+ 	 */
+ 	rcu_irq_enter_irqson();
+-	ret = atomic_notifier_call_chain(&cpu_pm_notifier_chain, event, NULL);
++	rcu_read_lock();
++	ret = raw_notifier_call_chain(&cpu_pm_notifier.chain, event, NULL);
++	rcu_read_unlock();
+ 	rcu_irq_exit_irqson();
+ 
+ 	return notifier_to_errno(ret);
+@@ -33,10 +46,13 @@ static int cpu_pm_notify(enum cpu_pm_event event)
+ 
+ static int cpu_pm_notify_robust(enum cpu_pm_event event_up, enum cpu_pm_event event_down)
+ {
++	unsigned long flags;
+ 	int ret;
+ 
+ 	rcu_irq_enter_irqson();
+-	ret = atomic_notifier_call_chain_robust(&cpu_pm_notifier_chain, event_up, event_down, NULL);
++	raw_spin_lock_irqsave(&cpu_pm_notifier.lock, flags);
++	ret = raw_notifier_call_chain_robust(&cpu_pm_notifier.chain, event_up, event_down, NULL);
++	raw_spin_unlock_irqrestore(&cpu_pm_notifier.lock, flags);
+ 	rcu_irq_exit_irqson();
+ 
+ 	return notifier_to_errno(ret);
+@@ -49,12 +65,17 @@ static int cpu_pm_notify_robust(enum cpu_pm_event event_up, enum cpu_pm_event ev
+  * Add a driver to a list of drivers that are notified about
+  * CPU and CPU cluster low power entry and exit.
+  *
+- * This function may sleep, and has the same return conditions as
+- * raw_notifier_chain_register.
++ * This function has the same return conditions as raw_notifier_chain_register.
+  */
+ int cpu_pm_register_notifier(struct notifier_block *nb)
+ {
+-	return atomic_notifier_chain_register(&cpu_pm_notifier_chain, nb);
++	unsigned long flags;
++	int ret;
++
++	raw_spin_lock_irqsave(&cpu_pm_notifier.lock, flags);
++	ret = raw_notifier_chain_register(&cpu_pm_notifier.chain, nb);
++	raw_spin_unlock_irqrestore(&cpu_pm_notifier.lock, flags);
++	return ret;
+ }
+ EXPORT_SYMBOL_GPL(cpu_pm_register_notifier);
+ 
+@@ -64,12 +85,17 @@ EXPORT_SYMBOL_GPL(cpu_pm_register_notifier);
+  *
+  * Remove a driver from the CPU PM notifier list.
+  *
+- * This function may sleep, and has the same return conditions as
+- * raw_notifier_chain_unregister.
++ * This function has the same return conditions as raw_notifier_chain_unregister.
+  */
+ int cpu_pm_unregister_notifier(struct notifier_block *nb)
+ {
+-	return atomic_notifier_chain_unregister(&cpu_pm_notifier_chain, nb);
++	unsigned long flags;
++	int ret;
++
++	raw_spin_lock_irqsave(&cpu_pm_notifier.lock, flags);
++	ret = raw_notifier_chain_unregister(&cpu_pm_notifier.chain, nb);
++	raw_spin_unlock_irqrestore(&cpu_pm_notifier.lock, flags);
++	return ret;
+ }
+ EXPORT_SYMBOL_GPL(cpu_pm_unregister_notifier);
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From 15538a20579fa4047912508b03b39bcdeec26b05 Mon Sep 17 00:00:00 2001
+From: Valentin Schneider <valentin.schneider@arm.com>
+Date: Wed, 11 Aug 2021 21:14:32 +0100
+Subject: notifier: Remove atomic_notifier_call_chain_robust()
+
+This now has no more users, remove it.
+
+Suggested-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Valentin Schneider <valentin.schneider@arm.com>
+Acked-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ include/linux/notifier.h |  2 --
+ kernel/notifier.c        | 19 -------------------
+ 2 files changed, 21 deletions(-)
+
+diff --git a/include/linux/notifier.h b/include/linux/notifier.h
+index 2fb373a5c1ede..87069b8459af9 100644
+--- a/include/linux/notifier.h
++++ b/include/linux/notifier.h
+@@ -168,8 +168,6 @@ extern int raw_notifier_call_chain(struct raw_notifier_head *nh,
+ extern int srcu_notifier_call_chain(struct srcu_notifier_head *nh,
+ 		unsigned long val, void *v);
+ 
+-extern int atomic_notifier_call_chain_robust(struct atomic_notifier_head *nh,
+-		unsigned long val_up, unsigned long val_down, void *v);
+ extern int blocking_notifier_call_chain_robust(struct blocking_notifier_head *nh,
+ 		unsigned long val_up, unsigned long val_down, void *v);
+ extern int raw_notifier_call_chain_robust(struct raw_notifier_head *nh,
+diff --git a/kernel/notifier.c b/kernel/notifier.c
+index 1b019cbca594a..b8251dc0bc0f1 100644
+--- a/kernel/notifier.c
++++ b/kernel/notifier.c
+@@ -172,25 +172,6 @@ int atomic_notifier_chain_unregister(struct atomic_notifier_head *nh,
+ }
+ EXPORT_SYMBOL_GPL(atomic_notifier_chain_unregister);
+ 
+-int atomic_notifier_call_chain_robust(struct atomic_notifier_head *nh,
+-		unsigned long val_up, unsigned long val_down, void *v)
+-{
+-	unsigned long flags;
+-	int ret;
+-
+-	/*
+-	 * Musn't use RCU; because then the notifier list can
+-	 * change between the up and down traversal.
+-	 */
+-	spin_lock_irqsave(&nh->lock, flags);
+-	ret = notifier_call_chain_robust(&nh->head, val_up, val_down, v);
+-	spin_unlock_irqrestore(&nh->lock, flags);
+-
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(atomic_notifier_call_chain_robust);
+-NOKPROBE_SYMBOL(atomic_notifier_call_chain_robust);
+-
+ /**
+  *	atomic_notifier_call_chain - Call functions in an atomic notifier chain
+  *	@nh: Pointer to head of the atomic notifier chain
+-- 
+cgit 1.2.3-1.el7
+
+
+From 950809cd6ca2ff2e2bb9d826c4d9e35d134d7de0 Mon Sep 17 00:00:00 2001
+From: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Date: Thu, 19 Aug 2021 19:40:05 -0700
+Subject: thermal: intel: Allow processing of HWP interrupt
+
+Add a weak function to process HWP (Hardware P-states) notifications and
+move updating HWP_STATUS MSR to this function.
+
+This allows HWP interrupts to be processed by the intel_pstate driver in
+HWP mode by overriding the implementation.
+
+Signed-off-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Acked-by: Zhang Rui <rui.zhang@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/intel/therm_throt.c       | 7 ++++++-
+ drivers/thermal/intel/thermal_interrupt.h | 3 +++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/intel/therm_throt.c b/drivers/thermal/intel/therm_throt.c
+index 99abdc03c44ce..dab7e8fb10598 100644
+--- a/drivers/thermal/intel/therm_throt.c
++++ b/drivers/thermal/intel/therm_throt.c
+@@ -569,13 +569,18 @@ static void notify_thresholds(__u64 msr_val)
+ 		platform_thermal_notify(msr_val);
+ }
+ 
++void __weak notify_hwp_interrupt(void)
++{
++	wrmsrl_safe(MSR_HWP_STATUS, 0);
++}
++
+ /* Thermal transition interrupt handler */
+ void intel_thermal_interrupt(void)
+ {
+ 	__u64 msr_val;
+ 
+ 	if (static_cpu_has(X86_FEATURE_HWP))
+-		wrmsrl_safe(MSR_HWP_STATUS, 0);
++		notify_hwp_interrupt();
+ 
+ 	rdmsrl(MSR_IA32_THERM_STATUS, msr_val);
+ 
+diff --git a/drivers/thermal/intel/thermal_interrupt.h b/drivers/thermal/intel/thermal_interrupt.h
+index 53f427bb58dce..01e7bed2ffc71 100644
+--- a/drivers/thermal/intel/thermal_interrupt.h
++++ b/drivers/thermal/intel/thermal_interrupt.h
+@@ -12,4 +12,7 @@ extern int (*platform_thermal_notify)(__u64 msr_val);
+  * callback has rate control */
+ extern bool (*platform_thermal_package_rate_control)(void);
+ 
++/* Handle HWP interrupt */
++extern void notify_hwp_interrupt(void);
++
+ #endif /* _INTEL_THERMAL_INTERRUPT_H */
+-- 
+cgit 1.2.3-1.el7
+
+
+From d0e936adbd2250cb03f2e840c6651d18edc22ace Mon Sep 17 00:00:00 2001
+From: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Date: Thu, 19 Aug 2021 19:40:06 -0700
+Subject: cpufreq: intel_pstate: Process HWP Guaranteed change notification
+
+It is possible that HWP guaranteed ratio is changed in response to
+change in power and thermal limits. For example when Intel Speed Select
+performance profile is changed or there is change in TDP, hardware can
+send notifications. It is possible that the guaranteed ratio is
+increased. This creates an issue when turbo is disabled, as the old
+limits set in MSR_HWP_REQUEST are still lower and hardware will clip
+to older limits.
+
+This change enables HWP interrupt and process HWP interrupts. When
+guaranteed is changed, calls cpufreq_update_policy() so that driver
+callbacks are called to update to new HWP limits. This callback
+is called from a delayed workqueue of 10ms to avoid frequent updates.
+
+Signed-off-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/intel_pstate.c | 39 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/drivers/cpufreq/intel_pstate.c b/drivers/cpufreq/intel_pstate.c
+index 2d83a9f9651b0..b4ffe6c8a0d0c 100644
+--- a/drivers/cpufreq/intel_pstate.c
++++ b/drivers/cpufreq/intel_pstate.c
+@@ -32,6 +32,7 @@
+ #include <asm/cpu_device_id.h>
+ #include <asm/cpufeature.h>
+ #include <asm/intel-family.h>
++#include "../drivers/thermal/intel/thermal_interrupt.h"
+ 
+ #define INTEL_PSTATE_SAMPLING_INTERVAL	(10 * NSEC_PER_MSEC)
+ 
+@@ -219,6 +220,7 @@ struct global_params {
+  * @sched_flags:	Store scheduler flags for possible cross CPU update
+  * @hwp_boost_min:	Last HWP boosted min performance
+  * @suspended:		Whether or not the driver has been suspended.
++ * @hwp_notify_work:	workqueue for HWP notifications.
+  *
+  * This structure stores per CPU instance data for all CPUs.
+  */
+@@ -257,6 +259,7 @@ struct cpudata {
+ 	unsigned int sched_flags;
+ 	u32 hwp_boost_min;
+ 	bool suspended;
++	struct delayed_work hwp_notify_work;
+ };
+ 
+ static struct cpudata **all_cpu_data;
+@@ -1625,6 +1628,40 @@ static void intel_pstate_sysfs_hide_hwp_dynamic_boost(void)
+ 
+ /************************** sysfs end ************************/
+ 
++static void intel_pstate_notify_work(struct work_struct *work)
++{
++	mutex_lock(&intel_pstate_driver_lock);
++	cpufreq_update_policy(smp_processor_id());
++	wrmsrl(MSR_HWP_STATUS, 0);
++	mutex_unlock(&intel_pstate_driver_lock);
++}
++
++void notify_hwp_interrupt(void)
++{
++	unsigned int this_cpu = smp_processor_id();
++	struct cpudata *cpudata;
++	u64 value;
++
++	if (!hwp_active || !boot_cpu_has(X86_FEATURE_HWP_NOTIFY))
++		return;
++
++	rdmsrl(MSR_HWP_STATUS, value);
++	if (!(value & 0x01))
++		return;
++
++	cpudata = all_cpu_data[this_cpu];
++	schedule_delayed_work_on(this_cpu, &cpudata->hwp_notify_work, msecs_to_jiffies(10));
++}
++
++static void intel_pstate_enable_hwp_interrupt(struct cpudata *cpudata)
++{
++	/* Enable HWP notification interrupt for guaranteed performance change */
++	if (boot_cpu_has(X86_FEATURE_HWP_NOTIFY)) {
++		INIT_DELAYED_WORK(&cpudata->hwp_notify_work, intel_pstate_notify_work);
++		wrmsrl_on_cpu(cpudata->cpu, MSR_HWP_INTERRUPT, 0x01);
++	}
++}
++
+ static void intel_pstate_hwp_enable(struct cpudata *cpudata)
+ {
+ 	/* First disable HWP notification interrupt as we don't process them */
+@@ -1634,6 +1671,8 @@ static void intel_pstate_hwp_enable(struct cpudata *cpudata)
+ 	wrmsrl_on_cpu(cpudata->cpu, MSR_PM_ENABLE, 0x1);
+ 	if (cpudata->epp_default == -EINVAL)
+ 		cpudata->epp_default = intel_pstate_get_epp(cpudata, 0);
++
++	intel_pstate_enable_hwp_interrupt(cpudata);
+ }
+ 
+ static int atom_get_min_pstate(void)
+-- 
+cgit 1.2.3-1.el7
+
+
+From 1cc5b9a411e43aa2cb5060429ede6c50217bad90 Mon Sep 17 00:00:00 2001
+From: Sumeet Pawnikar <sumeet.r.pawnikar@intel.com>
+Date: Fri, 20 Aug 2021 17:22:33 +0530
+Subject: powercap: Add Power Limit4 support for Alder Lake SoC
+
+Add Power Limit4 support for Alder Lake SoC.
+
+Signed-off-by: Sumeet Pawnikar <sumeet.r.pawnikar@intel.com>
+Acked-by: Zhang Rui <rui.zhang@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/powercap/intel_rapl_msr.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/powercap/intel_rapl_msr.c b/drivers/powercap/intel_rapl_msr.c
+index cc3b22881bfe9..1be45f36ab6cd 100644
+--- a/drivers/powercap/intel_rapl_msr.c
++++ b/drivers/powercap/intel_rapl_msr.c
+@@ -138,6 +138,8 @@ static int rapl_msr_write_raw(int cpu, struct reg_action *ra)
+ /* List of verified CPUs. */
+ static const struct x86_cpu_id pl4_support_ids[] = {
+ 	{ X86_VENDOR_INTEL, 6, INTEL_FAM6_TIGERLAKE_L, X86_FEATURE_ANY },
++	{ X86_VENDOR_INTEL, 6, INTEL_FAM6_ALDERLAKE, X86_FEATURE_ANY },
++	{ X86_VENDOR_INTEL, 6, INTEL_FAM6_ALDERLAKE_L, X86_FEATURE_ANY },
+ 	{}
+ };
+ 
+-- 
+cgit 1.2.3-1.el7
+
+
+From 656164181eece68a2f99f0b8a1c5558184b67d7b Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 24 Aug 2021 17:23:38 +0200
+Subject: PM: domains: Fix domain attach for CONFIG_PM_OPP=n
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If CONFIG_PM_OPP=n, of_get_required_opp_performance_state() always
+returns -EOPNOTSUPP, and all drivers for devices that are part of a PM
+Domain fail to probe with:
+
+    failed to set required performance state for power-domain foo: -95
+    probe of bar failed with error -95
+
+Fix this by treating -EOPNOTSUPP the same as -ENODEV.
+
+Fixes: c016baf7dc58e77a ("PM: domains: Add support for 'required-opps' to set default perf state")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Niklas Söderlund <niklas.soderlund+renesas@ragnatech.se>
+Reviewed-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/base/power/domain.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/base/power/domain.c b/drivers/base/power/domain.c
+index e1c8994ae225e..adb41de68e0aa 100644
+--- a/drivers/base/power/domain.c
++++ b/drivers/base/power/domain.c
+@@ -2689,7 +2689,7 @@ static int __genpd_dev_pm_attach(struct device *dev, struct device *base_dev,
+ 
+ 	/* Set the default performance state */
+ 	pstate = of_get_required_opp_performance_state(dev->of_node, index);
+-	if (pstate < 0 && pstate != -ENODEV) {
++	if (pstate < 0 && pstate != -ENODEV && pstate != -EOPNOTSUPP) {
+ 		ret = pstate;
+ 		goto err;
+ 	} else if (pstate > 0) {
+-- 
+cgit 1.2.3-1.el7
+

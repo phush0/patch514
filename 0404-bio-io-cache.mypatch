@@ -1,0 +1,768 @@
+From be318430e199cd4b59bcde0c8d3172be43211f93 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 11 Aug 2021 09:20:04 -0600
+Subject: [PATCH 01/12] bio: optimize initialization of a bio
+
+The memset() used is measurably slower in targeted benchmarks, wasting
+about 1% of the total runtime, or 50% of the (later) hot path cached
+bio alloc. Get rid of it and fill in the bio manually.
+
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bio.c | 29 ++++++++++++++++++++++++++++-
+ 1 file changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 1fab762e079be5..9bf98b877aba7a 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -246,7 +246,34 @@ static void bio_free(struct bio *bio)
+ void bio_init(struct bio *bio, struct bio_vec *table,
+ 	      unsigned short max_vecs)
+ {
+-	memset(bio, 0, sizeof(*bio));
++	bio->bi_next = NULL;
++	bio->bi_bdev = NULL;
++	bio->bi_opf = 0;
++	bio->bi_flags = 0;
++	bio->bi_ioprio = 0;
++	bio->bi_write_hint = 0;
++	bio->bi_status = 0;
++	bio->bi_iter.bi_sector = 0;
++	bio->bi_iter.bi_size = 0;
++	bio->bi_iter.bi_idx = 0;
++	bio->bi_iter.bi_bvec_done = 0;
++	bio->bi_end_io = NULL;
++	bio->bi_private = NULL;
++#ifdef CONFIG_BLK_CGROUP
++	bio->bi_blkg = NULL;
++	bio->bi_issue.value = 0;
++#ifdef CONFIG_BLK_CGROUP_IOCOST
++	bio->bi_iocost_cost = 0;
++#endif
++#endif
++#ifdef CONFIG_BLK_INLINE_ENCRYPTION
++	bio->bi_crypt_context = NULL;
++#endif
++#ifdef CONFIG_BLK_DEV_INTEGRITY
++	bio->bi_integrity = NULL;
++#endif
++	bio->bi_vcnt = 0;
++
+ 	atomic_set(&bio->__bi_remaining, 1);
+ 	atomic_set(&bio->__bi_cnt, 1);
+ 
+
+From 716b6fd56b2d1acb511d292bed0f023d6c735ffe Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Tue, 10 Aug 2021 09:29:55 -0600
+Subject: [PATCH 02/12] fs: add kiocb alloc cache flag
+
+If this kiocb can safely use the polled bio allocation cache, then this
+flag must be set. Generally this can be set for polled IO, where we will
+not see IRQ completions of the request.
+
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ include/linux/fs.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 640574294216c0..0dcc5de779c94e 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -319,6 +319,8 @@ enum rw_hint {
+ /* iocb->ki_waitq is valid */
+ #define IOCB_WAITQ		(1 << 19)
+ #define IOCB_NOIO		(1 << 20)
++/* can use bio alloc cache */
++#define IOCB_ALLOC_CACHE	(1 << 21)
+ 
+ struct kiocb {
+ 	struct file		*ki_filp;
+
+From eb9fa0e557bc283712defb658a06140ce556a95e Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Mon, 8 Mar 2021 11:37:47 -0700
+Subject: [PATCH 03/12] bio: add allocation cache abstraction
+
+Add a per-cpu bio_set cache for bio allocations, enabling us to quickly
+recycle them instead of going through the slab allocator. This cache
+isn't IRQ safe, and hence is only really suitable for polled IO.
+
+Very simple - keeps a count of bio's in the cache, and maintains a max
+of 512 with a slack of 64. If we get above max + slack, we drop slack
+number of bio's.
+
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bio.c                | 133 +++++++++++++++++++++++++++++++++----
+ include/linux/bio.h        |  13 ++++
+ include/linux/blk_types.h  |   1 +
+ include/linux/cpuhotplug.h |   1 +
+ 4 files changed, 134 insertions(+), 14 deletions(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 9bf98b877aba7a..bb16e556bc68e4 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -25,6 +25,11 @@
+ #include "blk.h"
+ #include "blk-rq-qos.h"
+ 
++struct bio_alloc_cache {
++	struct bio_list		free_list;
++	unsigned int		nr;
++};
++
+ static struct biovec_slab {
+ 	int nr_vecs;
+ 	char *name;
+@@ -618,6 +623,53 @@ void guard_bio_eod(struct bio *bio)
+ 	bio_truncate(bio, maxsector << 9);
+ }
+ 
++#define ALLOC_CACHE_MAX		512
++#define ALLOC_CACHE_SLACK	 64
++
++static void bio_alloc_cache_prune(struct bio_alloc_cache *cache,
++				  unsigned int nr)
++{
++	unsigned int i = 0;
++	struct bio *bio;
++
++	while ((bio = bio_list_pop(&cache->free_list)) != NULL) {
++		cache->nr--;
++		bio_free(bio);
++		if (++i == nr)
++			break;
++	}
++}
++
++static int bio_cpu_dead(unsigned int cpu, struct hlist_node *node)
++{
++	struct bio_set *bs;
++
++	bs = hlist_entry_safe(node, struct bio_set, cpuhp_dead);
++	if (bs->cache) {
++		struct bio_alloc_cache *cache = per_cpu_ptr(bs->cache, cpu);
++
++		bio_alloc_cache_prune(cache, -1U);
++	}
++	return 0;
++}
++
++static void bio_alloc_cache_destroy(struct bio_set *bs)
++{
++	int cpu;
++
++	if (!bs->cache)
++		return;
++
++	cpuhp_state_remove_instance_nocalls(CPUHP_BIO_DEAD, &bs->cpuhp_dead);
++	for_each_possible_cpu(cpu) {
++		struct bio_alloc_cache *cache;
++
++		cache = per_cpu_ptr(bs->cache, cpu);
++		bio_alloc_cache_prune(cache, -1U);
++	}
++	free_percpu(bs->cache);
++}
++
+ /**
+  * bio_put - release a reference to a bio
+  * @bio:   bio to release reference to
+@@ -628,16 +680,23 @@ void guard_bio_eod(struct bio *bio)
+  **/
+ void bio_put(struct bio *bio)
+ {
+-	if (!bio_flagged(bio, BIO_REFFED))
+-		bio_free(bio);
+-	else {
++	if (unlikely(bio_flagged(bio, BIO_REFFED))) {
+ 		BIO_BUG_ON(!atomic_read(&bio->__bi_cnt));
++		if (!atomic_dec_and_test(&bio->__bi_cnt))
++			return;
++	}
+ 
+-		/*
+-		 * last put frees it
+-		 */
+-		if (atomic_dec_and_test(&bio->__bi_cnt))
+-			bio_free(bio);
++	if (bio_flagged(bio, BIO_PERCPU_CACHE)) {
++		struct bio_alloc_cache *cache;
++
++		bio_uninit(bio);
++		cache = per_cpu_ptr(bio->bi_pool->cache, get_cpu());
++		bio_list_add_head(&cache->free_list, bio);
++		if (++cache->nr > ALLOC_CACHE_MAX + ALLOC_CACHE_SLACK)
++			bio_alloc_cache_prune(cache, ALLOC_CACHE_SLACK);
++		put_cpu();
++	} else {
++		bio_free(bio);
+ 	}
+ }
+ EXPORT_SYMBOL(bio_put);
+@@ -1529,6 +1588,7 @@ int biovec_init_pool(mempool_t *pool, int pool_entries)
+  */
+ void bioset_exit(struct bio_set *bs)
+ {
++	bio_alloc_cache_destroy(bs);
+ 	if (bs->rescue_workqueue)
+ 		destroy_workqueue(bs->rescue_workqueue);
+ 	bs->rescue_workqueue = NULL;
+@@ -1590,12 +1650,18 @@ int bioset_init(struct bio_set *bs,
+ 	    biovec_init_pool(&bs->bvec_pool, pool_size))
+ 		goto bad;
+ 
+-	if (!(flags & BIOSET_NEED_RESCUER))
+-		return 0;
+-
+-	bs->rescue_workqueue = alloc_workqueue("bioset", WQ_MEM_RECLAIM, 0);
+-	if (!bs->rescue_workqueue)
+-		goto bad;
++	if (flags & BIOSET_NEED_RESCUER) {
++		bs->rescue_workqueue = alloc_workqueue("bioset",
++							WQ_MEM_RECLAIM, 0);
++		if (!bs->rescue_workqueue)
++			goto bad;
++	}
++	if (flags & BIOSET_PERCPU_CACHE) {
++		bs->cache = alloc_percpu(struct bio_alloc_cache);
++		if (!bs->cache)
++			goto bad;
++		cpuhp_state_add_instance_nocalls(CPUHP_BIO_DEAD, &bs->cpuhp_dead);
++	}
+ 
+ 	return 0;
+ bad:
+@@ -1622,6 +1688,42 @@ int bioset_init_from_src(struct bio_set *bs, struct bio_set *src)
+ }
+ EXPORT_SYMBOL(bioset_init_from_src);
+ 
++/**
++ * bio_alloc_kiocb - Allocate a bio from bio_set based on kiocb
++ * @kiocb:	kiocb describing the IO
++ * @bs:		bio_set to allocate from
++ *
++ * Description:
++ *    Like @bio_alloc_bioset, but pass in the kiocb. The kiocb is only
++ *    used to check if we should dip into the per-cpu bio_set allocation
++ *    cache. The allocation uses GFP_KERNEL internally.
++ *
++ */
++struct bio *bio_alloc_kiocb(struct kiocb *kiocb, unsigned short nr_vecs,
++			    struct bio_set *bs)
++{
++	struct bio_alloc_cache *cache;
++	struct bio *bio;
++
++	if (!(kiocb->ki_flags & IOCB_ALLOC_CACHE) || nr_vecs > BIO_INLINE_VECS)
++		return bio_alloc_bioset(GFP_KERNEL, nr_vecs, bs);
++
++	cache = per_cpu_ptr(bs->cache, get_cpu());
++	bio = bio_list_pop(&cache->free_list);
++	if (bio) {
++		cache->nr--;
++		put_cpu();
++		bio_init(bio, nr_vecs ? bio->bi_inline_vecs : NULL, nr_vecs);
++		bio_set_flag(bio, BIO_PERCPU_CACHE);
++		return bio;
++	}
++	put_cpu();
++	bio = bio_alloc_bioset(GFP_KERNEL, nr_vecs, bs);
++	bio_set_flag(bio, BIO_PERCPU_CACHE);
++	return bio;
++}
++EXPORT_SYMBOL_GPL(bio_alloc_kiocb);
++
+ static int __init init_bio(void)
+ {
+ 	int i;
+@@ -1636,6 +1738,9 @@ static int __init init_bio(void)
+ 				SLAB_HWCACHE_ALIGN | SLAB_PANIC, NULL);
+ 	}
+ 
++	cpuhp_setup_state_multi(CPUHP_BIO_DEAD, "block/bio:dead", NULL,
++					bio_cpu_dead);
++
+ 	if (bioset_init(&fs_bio_set, BIO_POOL_SIZE, 0, BIOSET_NEED_BVECS))
+ 		panic("bio: can't allocate bios\n");
+ 
+diff --git a/include/linux/bio.h b/include/linux/bio.h
+index 2203b686e1f034..89ad28213b1d60 100644
+--- a/include/linux/bio.h
++++ b/include/linux/bio.h
+@@ -401,6 +401,7 @@ static inline struct bio *bio_next_split(struct bio *bio, int sectors,
+ enum {
+ 	BIOSET_NEED_BVECS = BIT(0),
+ 	BIOSET_NEED_RESCUER = BIT(1),
++	BIOSET_PERCPU_CACHE = BIT(2),
+ };
+ extern int bioset_init(struct bio_set *, unsigned int, unsigned int, int flags);
+ extern void bioset_exit(struct bio_set *);
+@@ -409,6 +410,8 @@ extern int bioset_init_from_src(struct bio_set *bs, struct bio_set *src);
+ 
+ struct bio *bio_alloc_bioset(gfp_t gfp, unsigned short nr_iovecs,
+ 		struct bio_set *bs);
++struct bio *bio_alloc_kiocb(struct kiocb *kiocb, unsigned short nr_vecs,
++		struct bio_set *bs);
+ struct bio *bio_kmalloc(gfp_t gfp_mask, unsigned short nr_iovecs);
+ extern void bio_put(struct bio *);
+ 
+@@ -699,6 +702,11 @@ struct bio_set {
+ 	struct kmem_cache *bio_slab;
+ 	unsigned int front_pad;
+ 
++	/*
++	 * per-cpu bio alloc cache
++	 */
++	struct bio_alloc_cache __percpu *cache;
++
+ 	mempool_t bio_pool;
+ 	mempool_t bvec_pool;
+ #if defined(CONFIG_BLK_DEV_INTEGRITY)
+@@ -715,6 +723,11 @@ struct bio_set {
+ 	struct bio_list		rescue_list;
+ 	struct work_struct	rescue_work;
+ 	struct workqueue_struct	*rescue_workqueue;
++
++	/*
++	 * Hot un-plug notifier for the per-cpu cache, if used
++	 */
++	struct hlist_node cpuhp_dead;
+ };
+ 
+ static inline bool bioset_initialized(struct bio_set *bs)
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index 290f9061b29ac8..f68d4e8c775e81 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -301,6 +301,7 @@ enum {
+ 	BIO_TRACKED,		/* set if bio goes through the rq_qos path */
+ 	BIO_REMAPPED,
+ 	BIO_ZONE_WRITE_LOCKED,	/* Owns a zoned device zone write lock */
++	BIO_PERCPU_CACHE,	/* can participate in per-cpu alloc cache */
+ 	BIO_FLAG_LAST
+ };
+ 
+diff --git a/include/linux/cpuhotplug.h b/include/linux/cpuhotplug.h
+index f39b34b1387109..fe72c8d6c9809a 100644
+--- a/include/linux/cpuhotplug.h
++++ b/include/linux/cpuhotplug.h
+@@ -46,6 +46,7 @@ enum cpuhp_state {
+ 	CPUHP_ARM_OMAP_WAKE_DEAD,
+ 	CPUHP_IRQ_POLL_DEAD,
+ 	CPUHP_BLOCK_SOFTIRQ_DEAD,
++	CPUHP_BIO_DEAD,
+ 	CPUHP_ACPI_CPUDRV_DEAD,
+ 	CPUHP_S390_PFAULT_DEAD,
+ 	CPUHP_BLK_MQ_DEAD,
+
+From c0ef9ed418243a79fb80ae865d31dda54c92d663 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 11 Aug 2021 10:19:06 -0600
+Subject: [PATCH 04/12] block: clear BIO_PERCPU_CACHE flag if polling isn't
+ supported
+
+The bio alloc cache relies on the fact that a polled bio will complete
+in process context, clear the cacheable flag if we disable polling
+for a given bio.
+
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-core.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 4f8449b29b2146..0d4d6b1e5d2554 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -832,8 +832,11 @@ static noinline_for_stack bool submit_bio_checks(struct bio *bio)
+ 		}
+ 	}
+ 
+-	if (!test_bit(QUEUE_FLAG_POLL, &q->queue_flags))
++	if (!test_bit(QUEUE_FLAG_POLL, &q->queue_flags)) {
++		/* can't support alloc cache if we turn off polling */
++		bio_clear_flag(bio, BIO_PERCPU_CACHE);
+ 		bio->bi_opf &= ~REQ_HIPRI;
++	}
+ 
+ 	switch (bio_op(bio)) {
+ 	case REQ_OP_DISCARD:
+
+From b8643f82c38d130e45e91b78af81a18973693097 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Mon, 8 Mar 2021 11:40:23 -0700
+Subject: [PATCH 05/12] io_uring: enable use of bio alloc cache
+
+Mark polled IO as being safe for dipping into the bio allocation
+cache, in case the targeted bio_set has it enabled.
+
+This brings an IOPOLL gen2 Optane QD=128 workload from ~3.2M IOPS to
+~3.5M IOPS.
+
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/io_uring.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index a2e20a6fbfed8e..48c0b18975dd0f 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -2721,7 +2721,7 @@ static int io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe)
+ 		    !kiocb->ki_filp->f_op->iopoll)
+ 			return -EOPNOTSUPP;
+ 
+-		kiocb->ki_flags |= IOCB_HIPRI;
++		kiocb->ki_flags |= IOCB_HIPRI | IOCB_ALLOC_CACHE;
+ 		kiocb->ki_complete = io_complete_rw_iopoll;
+ 		req->iopoll_completed = 0;
+ 	} else {
+
+From 21542d0e39fac7eb3b8b67f1ce704fdd7b4c3935 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Thu, 12 Aug 2021 09:05:52 -0600
+Subject: [PATCH 06/12] block: use the percpu bio cache in __blkdev_direct_IO
+
+Use bio_alloc_kiocb to dip into the percpu cache of bios when the
+caller asks for it.
+
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 9ef4f1fc2cb018..3c7fb710671314 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -385,7 +385,7 @@ static ssize_t __blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
+ 	    (bdev_logical_block_size(bdev) - 1))
+ 		return -EINVAL;
+ 
+-	bio = bio_alloc_bioset(GFP_KERNEL, nr_pages, &blkdev_dio_pool);
++	bio = bio_alloc_kiocb(iocb, nr_pages, &blkdev_dio_pool);
+ 
+ 	dio = container_of(bio, struct blkdev_dio, bio);
+ 	dio->is_sync = is_sync = is_sync_kiocb(iocb);
+@@ -513,7 +513,9 @@ blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
+ 
+ static __init int blkdev_init(void)
+ {
+-	return bioset_init(&blkdev_dio_pool, 4, offsetof(struct blkdev_dio, bio), BIOSET_NEED_BVECS);
++	return bioset_init(&blkdev_dio_pool, 4,
++				offsetof(struct blkdev_dio, bio),
++				BIOSET_NEED_BVECS|BIOSET_PERCPU_CACHE);
+ }
+ module_init(blkdev_init);
+ 
+
+From 19f8c9835bb120d58e60f71862cfb14b68601269 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Thu, 12 Aug 2021 11:42:53 -0600
+Subject: [PATCH 07/12] block: provide bio_clear_hipri() helper
+
+Any case that turns off REQ_HIPRI must also clear BIO_PERCPU_CACHE,
+as non-polled IO may complete through hard/soft IRQ and hence isn't
+safe for our polled bio alloc cache.
+
+Provide a helper that does just that, and use it in the merging code as
+well if we split a bio and turn off polling.
+
+Fixes: cd36a5ff3ca8 ("block: clear BIO_PERCPU_CACHE flag if polling isn't supported")
+Reported-by: Keith Busch <kbusch@kernel.org>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-core.c  | 7 ++-----
+ block/blk-merge.c | 2 +-
+ block/blk.h       | 7 +++++++
+ 3 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 0d4d6b1e5d2554..f35d401e65f8dc 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -832,11 +832,8 @@ static noinline_for_stack bool submit_bio_checks(struct bio *bio)
+ 		}
+ 	}
+ 
+-	if (!test_bit(QUEUE_FLAG_POLL, &q->queue_flags)) {
+-		/* can't support alloc cache if we turn off polling */
+-		bio_clear_flag(bio, BIO_PERCPU_CACHE);
+-		bio->bi_opf &= ~REQ_HIPRI;
+-	}
++	if (!test_bit(QUEUE_FLAG_POLL, &q->queue_flags))
++		bio_clear_hipri(bio);
+ 
+ 	switch (bio_op(bio)) {
+ 	case REQ_OP_DISCARD:
+diff --git a/block/blk-merge.c b/block/blk-merge.c
+index a11b3b53717efe..bc25ad409fc1ad 100644
+--- a/block/blk-merge.c
++++ b/block/blk-merge.c
+@@ -285,7 +285,7 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
+ 	 * iopoll in direct IO routine. Given performance gain of iopoll for
+ 	 * big IO can be trival, disable iopoll when split needed.
+ 	 */
+-	bio->bi_opf &= ~REQ_HIPRI;
++	bio_clear_hipri(bio);
+ 
+ 	return bio_split(bio, sectors, GFP_NOIO, bs);
+ }
+diff --git a/block/blk.h b/block/blk.h
+index cb01429c162c6f..5a4652a109319a 100644
+--- a/block/blk.h
++++ b/block/blk.h
+@@ -364,4 +364,11 @@ extern struct device_attribute dev_attr_events;
+ extern struct device_attribute dev_attr_events_async;
+ extern struct device_attribute dev_attr_events_poll_msecs;
+ 
++static inline void bio_clear_hipri(struct bio *bio)
++{
++	/* can't support alloc cache if we turn off polling */
++	bio_clear_flag(bio, BIO_PERCPU_CACHE);
++	bio->bi_opf &= ~REQ_HIPRI;
++}
++
+ #endif /* BLK_INTERNAL_H */
+
+From cc5f6c05a0cdadb04798972438f15d49bf0d56ec Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Fri, 13 Aug 2021 07:53:09 -0600
+Subject: [PATCH 08/12] bio: improve kerneldoc documentation for
+ bio_alloc_kiocb()
+
+We're missing a description for the 'nr_vecs' parameter. While in there,
+clarify that freeing a bio allocated through this function must be done
+from process context.
+
+Fixes: 1cbbd31c4ada ("bio: add allocation cache abstraction")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bio.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index bb16e556bc68e4..44c328db439092 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -1691,12 +1691,15 @@ EXPORT_SYMBOL(bioset_init_from_src);
+ /**
+  * bio_alloc_kiocb - Allocate a bio from bio_set based on kiocb
+  * @kiocb:	kiocb describing the IO
++ * @nr_iovecs:	number of iovecs to pre-allocate
+  * @bs:		bio_set to allocate from
+  *
+  * Description:
+  *    Like @bio_alloc_bioset, but pass in the kiocb. The kiocb is only
+  *    used to check if we should dip into the per-cpu bio_set allocation
+- *    cache. The allocation uses GFP_KERNEL internally.
++ *    cache. The allocation uses GFP_KERNEL internally. On return, the
++ *    bio is marked BIO_PERCPU_CACHEABLE, and the final put of the bio
++ *    MUST be done from process context, not hard/soft IRQ.
+  *
+  */
+ struct bio *bio_alloc_kiocb(struct kiocb *kiocb, unsigned short nr_vecs,
+
+From 46f4c4b29b03bb6a6beb350a51a89f5161db4410 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 18 Aug 2021 19:33:27 -0600
+Subject: [PATCH 09/12] bio: add in_task() check for bio alloc cache
+
+We must be in process context for freeing a bio that belongs to the
+cache, since the cache itself is deliberately not IRQ safe. Be safe
+and just check in_task() before using the cache free, if not just
+use bio_free() which is always safe.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 44c328db439092..56c67b1a992402 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -686,7 +686,7 @@ void bio_put(struct bio *bio)
+ 			return;
+ 	}
+ 
+-	if (bio_flagged(bio, BIO_PERCPU_CACHE)) {
++	if (bio_flagged(bio, BIO_PERCPU_CACHE) && in_task()) {
+ 		struct bio_alloc_cache *cache;
+ 
+ 		bio_uninit(bio);
+
+From e286d92d65abf2541ce4fad14c2824f29703da8a Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 18 Aug 2021 19:35:25 -0600
+Subject: [PATCH 10/12] block: add support for passing back a bio for
+ non-polled dio
+
+We support cached bio allocations and frees from polled IO, since it's
+trivial to do when we know IRQs are not going to be involved. However,
+some issuers of non-polled dio always complete from task context. That
+means we can support bio caching for that as well.
+
+Add a IOCB_PUT_CACHE flag that allows to pass back a bio through the
+kiocb, passing ownership of that bio to the kiocb completion handling.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c     | 20 +++++++++++++++++---
+ include/linux/fs.h |  2 ++
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 3c7fb710671314..2953c4119ac5e0 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -331,6 +331,7 @@ static void blkdev_bio_end_io(struct bio *bio)
+ {
+ 	struct blkdev_dio *dio = bio->bi_private;
+ 	bool should_dirty = dio->should_dirty;
++	bool free_bio = true;
+ 
+ 	if (bio->bi_status && !dio->bio.bi_status)
+ 		dio->bio.bi_status = bio->bi_status;
+@@ -346,8 +347,20 @@ static void blkdev_bio_end_io(struct bio *bio)
+ 			} else {
+ 				ret = blk_status_to_errno(dio->bio.bi_status);
+ 			}
+-
+-			dio->iocb->ki_complete(iocb, ret, 0);
++			/*
++			 * If IRQ driven and not using multi-bio, pass
++			 * ownership of bio to issuer for task-based free. Then
++			 * we can participate in the cached bio allocations, if
++			 * the caller marked the kiocb IOCB_ALLOC_CACHE.
++			 */
++			if (!should_dirty && !dio->multi_bio &&
++			    (iocb->ki_flags & (IOCB_ALLOC_CACHE|IOCB_HIPRI)) ==
++						IOCB_ALLOC_CACHE) {
++				iocb->ki_flags |= IOCB_PUT_CACHE;
++				iocb->private = bio;
++				free_bio = false;
++			}
++			iocb->ki_complete(iocb, ret, 0);
+ 			if (dio->multi_bio)
+ 				bio_put(&dio->bio);
+ 		} else {
+@@ -362,7 +375,8 @@ static void blkdev_bio_end_io(struct bio *bio)
+ 		bio_check_pages_dirty(bio);
+ 	} else {
+ 		bio_release_pages(bio, false);
+-		bio_put(bio);
++		if (free_bio)
++			bio_put(bio);
+ 	}
+ }
+ 
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 0dcc5de779c94e..79297b13a4bd48 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -321,6 +321,8 @@ enum rw_hint {
+ #define IOCB_NOIO		(1 << 20)
+ /* can use bio alloc cache */
+ #define IOCB_ALLOC_CACHE	(1 << 21)
++/* bio ownership (and put) passed back to caller */
++#define IOCB_PUT_CACHE		(1 << 22)
+ 
+ struct kiocb {
+ 	struct file		*ki_filp;
+
+From 8c5b30c247029943430ccf72fbe774e6fa5ad564 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 18 Aug 2021 19:38:58 -0600
+Subject: [PATCH 11/12] io_uring: support bio caching for non-polled IO
+
+Mark the kiocb with IOCB_ALLOC_CACHE even for non-polled IO, in case
+the lower layer participates in per-cpu bio caching. If it does, then
+IOCB_PUT_CACHE will be set upon kiocb->ki_complete() invocation,
+passing ownership to io_uring.
+
+io_uring doesn't complete even IRQ based requests from IRQ context,
+so we can safely put the bio when we run the actual io_kiocb completion.
+
+This provides a 5-10% boost in IOPS with IRQ driven IO.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/io_uring.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index 48c0b18975dd0f..918455c6bfef15 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -2498,6 +2498,10 @@ static void __io_complete_rw(struct io_kiocb *req, long res, long res2,
+ 		}
+ 		req_set_fail(req);
+ 	}
++#ifdef CONFIG_BLOCK
++    if (req->rw.kiocb.ki_flags & IOCB_PUT_CACHE)
++        bio_put(req->rw.kiocb.private);
++#endif
+ 	if (req->flags & REQ_F_BUFFER_SELECTED)
+ 		cflags = io_put_rw_kbuf(req);
+ 	__io_req_complete(req, issue_flags, res, cflags);
+@@ -2727,6 +2731,13 @@ static int io_prep_rw(struct io_kiocb *req, const struct io_uring_sqe *sqe)
+ 	} else {
+ 		if (kiocb->ki_flags & IOCB_HIPRI)
+ 			return -EINVAL;
++		/*
++		 * IRQ driven IO can participate in the bio alloc cache, since
++		 * we don't complete from IRQ anymore. This requires the caller
++		 * to pass back ownership of the bio before calling ki_complete,
++		 * and then ki_complete will put it from a safe context.
++		 */
++		kiocb->ki_flags |= IOCB_ALLOC_CACHE;
+ 		kiocb->ki_complete = io_complete_rw;
+ 	}
+ 
+
+From 466aee5870a62b828e1b8aec010f1e939fe9ca43 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Fri, 20 Aug 2021 21:18:03 -0600
+Subject: [PATCH 12/12] block: always initialize bio->bi_pool
+
+The common paths all set this, but some of the stack paths do not.
+Explicitly initialize it.
+
+Fixes: Fixes: a4aa1b0494ea ("bio: optimize initialization of a bio")
+Reported-by: Bart Van Assche <bvanassche@acm.org>
+Link: https://lore.kernel.org/linux-block/4b6318fb-0008-1747-64d5-b31991324acf@acm.org/
+Reported-by: kernel test robot <oliver.sang@intel.com>
+Link: https://lore.kernel.org/lkml/20210820070300.GB29369@xsang-OptiPlex-9020/
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bio.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 56c67b1a992402..21a6f5f0b58c96 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -282,8 +282,9 @@ void bio_init(struct bio *bio, struct bio_vec *table,
+ 	atomic_set(&bio->__bi_remaining, 1);
+ 	atomic_set(&bio->__bi_cnt, 1);
+ 
+-	bio->bi_io_vec = table;
+ 	bio->bi_max_vecs = max_vecs;
++	bio->bi_io_vec = table;
++	bio->bi_pool = NULL;
+ }
+ EXPORT_SYMBOL(bio_init);
+ 

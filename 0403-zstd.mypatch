@@ -1,4 +1,4 @@
-From 6034393e924c10aab9fe7714e9d57811699338d2 Mon Sep 17 00:00:00 2001
+From 43ddca5eb0c494e13a04b092c6edf0eb9deb0aef Mon Sep 17 00:00:00 2001
 From: Nick Terrell <terrelln@fb.com>
 Date: Fri, 11 Sep 2020 16:49:00 -0700
 Subject: [PATCH 1/4] lib: zstd: Add kernel-specific API
@@ -3487,7 +3487,7 @@ index 66cd487a326a81..02e92c2cbf4fc5 100644
  MODULE_LICENSE("Dual BSD/GPL");
  MODULE_DESCRIPTION("Zstd Decompressor");
 
-From 9b3e62c0a914c6404bc8626c286fcd504757b8f7 Mon Sep 17 00:00:00 2001
+From 846d69adc497fb99940516d3d723565e9e8cf720 Mon Sep 17 00:00:00 2001
 From: Nick Terrell <terrelln@fb.com>
 Date: Mon, 14 Sep 2020 12:54:12 -0700
 Subject: [PATCH 2/4] lib: zstd: Add decompress_sources.h for decompress_unzstd
@@ -3525,11 +3525,11 @@ index c076d6f050649f..a512b99ae16a93 100644
  #include <linux/decompress/mm.h>
 diff --git a/lib/zstd/decompress_sources.h b/lib/zstd/decompress_sources.h
 new file mode 100644
-index 00000000000000..d82cea4316f5ab
+index 00000000000000..9ba367b4414934
 --- /dev/null
 +++ b/lib/zstd/decompress_sources.h
 @@ -0,0 +1,23 @@
-+/* SPDX-License-Identifier: GPL-2.0-only */
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
 +/*
 + * Copyright (c) Facebook, Inc.
 + * All rights reserved.
@@ -3553,14 +3553,14 @@ index 00000000000000..d82cea4316f5ab
 +#include "zstd_common.c"
 +#include "decompress.c"
 
-From 2c58c2af004a93da58481f3666d7d795ebf153a2 Mon Sep 17 00:00:00 2001
+From dddc63acab3f210e48a3b6cb5d7fc348f0749c3c Mon Sep 17 00:00:00 2001
 From: Nick Terrell <terrelln@fb.com>
 Date: Fri, 11 Sep 2020 16:37:08 -0700
 Subject: [PATCH 3/4] lib: zstd: Upgrade to latest upstream zstd version 1.4.10
 
 Upgrade to the latest upstream zstd version 1.4.10.
 
-This patch is 100% generated from upstream zstd commit 67a426c322c5 [0].
+This patch is 100% generated from upstream zstd commit 20821a46f412 [0].
 
 This patch is very large because it is transitioning from the custom
 kernel zstd to using upstream directly. The new zstd follows upstreams
@@ -3613,7 +3613,7 @@ the update can be reverted, and we can work with upstream to find and
 fix the bug.
 
 Note that upstream zstd release 1.4.10 doesn't exist yet. I have cut a
-staging branch at 4432dac93bea [0] and will apply any changes requested
+staging branch at 20821a46f412 [0] and will apply any changes requested
 to the staging branch. Once we're ready to merge this update I will cut
 a zstd release at the commit we merge, so we have a known zstd release
 in the kernel.
@@ -3621,18 +3621,18 @@ in the kernel.
 The implementation of the kernel API is contained in
 zstd_compress_module.c and zstd_decompress_module.c.
 
-[0] https://github.com/facebook/zstd/commit/67a426c322c58a91b7fa59fdb2d59ea4f641b185
-[1] https://github.com/terrelln/linux/commit/cc1caeead9ca616386e35078a36e05ab536af112
+[0] https://github.com/facebook/zstd/commit/20821a46f4122f9abd7c7b245d28162dde8129c9
+[1] https://github.com/terrelln/linux/commit/e0fa481d0e3df26918da0a13749740a1f6777574
 
 Signed-off-by: Nick Terrell <terrelln@fb.com>
 ---
- include/linux/zstd.h                          |   11 +-
+ include/linux/zstd.h                          |   13 +-
  include/linux/zstd_errors.h                   |   77 +
  include/linux/zstd_lib.h                      | 3367 +++++++----
- lib/zstd/Makefile                             |   44 +-
+ lib/zstd/Makefile                             |   46 +-
  lib/zstd/bitstream.h                          |  380 --
  lib/zstd/common/bitstream.h                   |  437 ++
- lib/zstd/common/compiler.h                    |  151 +
+ lib/zstd/common/compiler.h                    |  170 +
  lib/zstd/common/cpu.h                         |  194 +
  lib/zstd/common/debug.c                       |   24 +
  lib/zstd/common/debug.h                       |  101 +
@@ -3650,8 +3650,8 @@ Signed-off-by: Nick Terrell <terrelln@fb.com>
  lib/zstd/compress/fse_compress.c              |  625 ++
  lib/zstd/compress/hist.c                      |  165 +
  lib/zstd/compress/hist.h                      |   75 +
- lib/zstd/compress/huf_compress.c              |  902 +++
- lib/zstd/compress/zstd_compress.c             | 5105 +++++++++++++++++
+ lib/zstd/compress/huf_compress.c              |  905 +++
+ lib/zstd/compress/zstd_compress.c             | 5109 +++++++++++++++++
  lib/zstd/compress/zstd_compress_internal.h    | 1188 ++++
  lib/zstd/compress/zstd_compress_literals.c    |  158 +
  lib/zstd/compress/zstd_compress_literals.h    |   29 +
@@ -3660,7 +3660,7 @@ Signed-off-by: Nick Terrell <terrelln@fb.com>
  lib/zstd/compress/zstd_compress_superblock.c  |  850 +++
  lib/zstd/compress/zstd_compress_superblock.h  |   32 +
  lib/zstd/compress/zstd_cwksp.h                |  482 ++
- lib/zstd/compress/zstd_double_fast.c          |  521 ++
+ lib/zstd/compress/zstd_double_fast.c          |  519 ++
  lib/zstd/compress/zstd_double_fast.h          |   32 +
  lib/zstd/compress/zstd_fast.c                 |  496 ++
  lib/zstd/compress/zstd_fast.h                 |   31 +
@@ -3675,7 +3675,7 @@ Signed-off-by: Nick Terrell <terrelln@fb.com>
  lib/zstd/decompress/huf_decompress.c          | 1206 ++++
  lib/zstd/decompress/zstd_ddict.c              |  241 +
  lib/zstd/decompress/zstd_ddict.h              |   44 +
- lib/zstd/decompress/zstd_decompress.c         | 2075 +++++++
+ lib/zstd/decompress/zstd_decompress.c         | 2082 +++++++
  lib/zstd/decompress/zstd_decompress_block.c   | 1540 +++++
  lib/zstd/decompress/zstd_decompress_block.h   |   62 +
  .../decompress/zstd_decompress_internal.h     |  202 +
@@ -3690,11 +3690,11 @@ Signed-off-by: Nick Terrell <terrelln@fb.com>
  lib/zstd/huf_decompress.c                     |  960 ----
  lib/zstd/mem.h                                |  151 -
  lib/zstd/zstd_common.c                        |   75 -
- lib/zstd/zstd_compress_module.c               |  124 +
+ lib/zstd/zstd_compress_module.c               |  160 +
  lib/zstd/zstd_decompress_module.c             |  105 +
  lib/zstd/zstd_internal.h                      |  273 -
  lib/zstd/zstd_opt.h                           | 1014 ----
- 68 files changed, 26786 insertions(+), 12991 deletions(-)
+ 68 files changed, 26855 insertions(+), 12993 deletions(-)
  create mode 100644 include/linux/zstd_errors.h
  delete mode 100644 lib/zstd/bitstream.h
  create mode 100644 lib/zstd/common/bitstream.h
@@ -3761,9 +3761,15 @@ Signed-off-by: Nick Terrell <terrelln@fb.com>
  delete mode 100644 lib/zstd/zstd_opt.h
 
 diff --git a/include/linux/zstd.h b/include/linux/zstd.h
-index 9fbc7729b0a0d6..446ecabcdd0227 100644
+index 9fbc7729b0a0d6..113408eef6ecef 100644
 --- a/include/linux/zstd.h
 +++ b/include/linux/zstd.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0-only */
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
+ /*
+  * Copyright (c) Yann Collet, Facebook, Inc.
+  * All rights reserved.
 @@ -22,6 +22,7 @@
  
  /* ======   Dependency   ====== */
@@ -7359,11 +7365,12 @@ index 13151c34f725f2..b8c7dbf98390fb 100644
 -
 -#endif  /* ZSTD_H */
 diff --git a/lib/zstd/Makefile b/lib/zstd/Makefile
-index f5d778e7e5c72d..19485e3cc7c9cc 100644
+index f5d778e7e5c72d..65218ec5b8f2a4 100644
 --- a/lib/zstd/Makefile
 +++ b/lib/zstd/Makefile
 @@ -1,10 +1,46 @@
- # SPDX-License-Identifier: GPL-2.0-only
+-# SPDX-License-Identifier: GPL-2.0-only
++# SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
 +# ################################################################
 +# Copyright (c) Facebook, Inc.
 +# All rights reserved.
@@ -7801,7 +7808,7 @@ index 5d6343c1a909ed..00000000000000
 -#endif /* BITSTREAM_H_MODULE */
 diff --git a/lib/zstd/common/bitstream.h b/lib/zstd/common/bitstream.h
 new file mode 100644
-index 00000000000000..2d6c95b4f40cc2
+index 00000000000000..28248abe8612a9
 --- /dev/null
 +++ b/lib/zstd/common/bitstream.h
 @@ -0,0 +1,437 @@
@@ -8081,22 +8088,22 @@ index 00000000000000..2d6c95b4f40cc2
 +        switch(srcSize)
 +        {
 +        case 7: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[6]) << (sizeof(bitD->bitContainer)*8 - 16);
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        case 6: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[5]) << (sizeof(bitD->bitContainer)*8 - 24);
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        case 5: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[4]) << (sizeof(bitD->bitContainer)*8 - 32);
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        case 4: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[3]) << 24;
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        case 3: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[2]) << 16;
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        case 2: bitD->bitContainer += (size_t)(((const BYTE*)(srcBuffer))[1]) <<  8;
-+                /* fall-through */
++                ZSTD_FALLTHROUGH;
 +
 +        default: break;
 +        }
@@ -8244,10 +8251,10 @@ index 00000000000000..2d6c95b4f40cc2
 +#endif /* BITSTREAM_H_MODULE */
 diff --git a/lib/zstd/common/compiler.h b/lib/zstd/common/compiler.h
 new file mode 100644
-index 00000000000000..a8286d8c424420
+index 00000000000000..a1a051e4bce66c
 --- /dev/null
 +++ b/lib/zstd/common/compiler.h
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,170 @@
 +/*
 + * Copyright (c) Yann Collet, Facebook, Inc.
 + * All rights reserved.
@@ -8391,6 +8398,25 @@ index 00000000000000..a8286d8c424420
 +#ifndef __has_feature
 +#  define __has_feature(x) 0
 +#endif
++
++/* C-language Attributes are added in C23. */
++#if defined(__STDC_VERSION__) && (__STDC_VERSION__ > 201710L) && defined(__has_c_attribute)
++# define ZSTD_HAS_C_ATTRIBUTE(x) __has_c_attribute(x)
++#else
++# define ZSTD_HAS_C_ATTRIBUTE(x) 0
++#endif
++
++/* Only use C++ attributes in C++. Some compilers report support for C++
++ * attributes when compiling with C.
++ */
++#define ZSTD_HAS_CPP_ATTRIBUTE(x) 0
++
++/* Define ZSTD_FALLTHROUGH macro for annotating switch case with the 'fallthrough' attribute.
++ * - C23: https://en.cppreference.com/w/c/language/attributes/fallthrough
++ * - CPP17: https://en.cppreference.com/w/cpp/language/attributes/fallthrough
++ * - Else: __attribute__((__fallthrough__))
++ */
++#define ZSTD_FALLTHROUGH fallthrough
 +
 +/* detects whether we are being compiled under msan */
 +
@@ -10709,11 +10735,11 @@ index 00000000000000..88c5586646aa51
 +
 diff --git a/lib/zstd/common/mem.h b/lib/zstd/common/mem.h
 new file mode 100644
-index 00000000000000..4b5db5756a6f7f
+index 00000000000000..dcdd586a9fd915
 --- /dev/null
 +++ b/lib/zstd/common/mem.h
 @@ -0,0 +1,259 @@
-+/* SPDX-License-Identifier: GPL-2.0-only */
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
 +/*
 + * Copyright (c) Yann Collet, Facebook, Inc.
 + * All rights reserved.
@@ -11063,11 +11089,11 @@ index 00000000000000..3d7e35b309b5d1
 +}
 diff --git a/lib/zstd/common/zstd_deps.h b/lib/zstd/common/zstd_deps.h
 new file mode 100644
-index 00000000000000..853b72426215b7
+index 00000000000000..7a5bf44839c9ce
 --- /dev/null
 +++ b/lib/zstd/common/zstd_deps.h
 @@ -0,0 +1,125 @@
-+/* SPDX-License-Identifier: GPL-2.0-only */
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
 +/*
 + * Copyright (c) Facebook, Inc.
 + * All rights reserved.
@@ -16073,10 +16099,10 @@ index 00000000000000..fc1830abc9c63a
 +                           const void* src, size_t srcSize);
 diff --git a/lib/zstd/compress/huf_compress.c b/lib/zstd/compress/huf_compress.c
 new file mode 100644
-index 00000000000000..122e812642e20a
+index 00000000000000..f76a526bfa54b5
 --- /dev/null
 +++ b/lib/zstd/compress/huf_compress.c
-@@ -0,0 +1,902 @@
+@@ -0,0 +1,905 @@
 +/* ******************************************************************
 + * Huffman encoder, part of New Generation Entropy library
 + * Copyright (c) Yann Collet, Facebook, Inc.
@@ -16672,16 +16698,19 @@ index 00000000000000..122e812642e20a
 +    n = srcSize & ~3;  /* join to mod 4 */
 +    switch (srcSize & 3)
 +    {
-+        case 3 : HUF_encodeSymbol(&bitC, ip[n+ 2], CTable);
++        case 3:
++            HUF_encodeSymbol(&bitC, ip[n+ 2], CTable);
 +                 HUF_FLUSHBITS_2(&bitC);
-+		 /* fall-through */
-+        case 2 : HUF_encodeSymbol(&bitC, ip[n+ 1], CTable);
++            ZSTD_FALLTHROUGH;
++        case 2:
++            HUF_encodeSymbol(&bitC, ip[n+ 1], CTable);
 +                 HUF_FLUSHBITS_1(&bitC);
-+		 /* fall-through */
-+        case 1 : HUF_encodeSymbol(&bitC, ip[n+ 0], CTable);
++            ZSTD_FALLTHROUGH;
++        case 1:
++            HUF_encodeSymbol(&bitC, ip[n+ 0], CTable);
 +                 HUF_FLUSHBITS(&bitC);
-+		 /* fall-through */
-+        case 0 : /* fall-through */
++            ZSTD_FALLTHROUGH;
++        case 0: ZSTD_FALLTHROUGH;
 +        default: break;
 +    }
 +
@@ -16981,10 +17010,10 @@ index 00000000000000..122e812642e20a
 +
 diff --git a/lib/zstd/compress/zstd_compress.c b/lib/zstd/compress/zstd_compress.c
 new file mode 100644
-index 00000000000000..f5b37ad650228b
+index 00000000000000..59e5d10167eb23
 --- /dev/null
 +++ b/lib/zstd/compress/zstd_compress.c
-@@ -0,0 +1,5105 @@
+@@ -0,0 +1,5109 @@
 +/*
 + * Copyright (c) Yann Collet, Facebook, Inc.
 + * All rights reserved.
@@ -19873,7 +19902,9 @@ index 00000000000000..f5b37ad650228b
 +    if (!singleSegment) op[pos++] = windowLogByte;
 +    switch(dictIDSizeCode)
 +    {
-+        default:  assert(0); /* impossible */
++        default:
++            assert(0); /* impossible */
++            ZSTD_FALLTHROUGH;
 +        case 0 : break;
 +        case 1 : op[pos] = (BYTE)(dictID); pos++; break;
 +        case 2 : MEM_writeLE16(op+pos, (U16)dictID); pos+=2; break;
@@ -19881,7 +19912,9 @@ index 00000000000000..f5b37ad650228b
 +    }
 +    switch(fcsCode)
 +    {
-+        default:  assert(0); /* impossible */
++        default:
++            assert(0); /* impossible */
++            ZSTD_FALLTHROUGH;
 +        case 0 : if (singleSegment) op[pos++] = (BYTE)(pledgedSrcSize); break;
 +        case 1 : MEM_writeLE16(op+pos, (U16)(pledgedSrcSize-256)); pos+=2; break;
 +        case 2 : MEM_writeLE32(op+pos, (U32)(pledgedSrcSize)); pos+=4; break;
@@ -21200,7 +21233,7 @@ index 00000000000000..f5b37ad650228b
 +                zcs->outBuffFlushedSize = 0;
 +                zcs->streamStage = zcss_flush; /* pass-through to flush stage */
 +            }
-+	    /* fall-through */
++	    ZSTD_FALLTHROUGH;
 +        case zcss_flush:
 +            DEBUGLOG(5, "flush stage");
 +            assert(zcs->appliedParams.outBufferMode == ZSTD_bm_buffered);
@@ -22092,7 +22125,7 @@ index 00000000000000..f5b37ad650228b
 +}
 diff --git a/lib/zstd/compress/zstd_compress_internal.h b/lib/zstd/compress/zstd_compress_internal.h
 new file mode 100644
-index 00000000000000..0a3b81663eb518
+index 00000000000000..685d2f996cc2a6
 --- /dev/null
 +++ b/lib/zstd/compress/zstd_compress_internal.h
 @@ -0,0 +1,1188 @@
@@ -22572,7 +22605,7 @@ index 00000000000000..0a3b81663eb518
 +        return 1;
 +    default:
 +        assert(0 /* impossible: pre-validated */);
-+        /* fall-through */
++        ZSTD_FALLTHROUGH;
 +    case ZSTD_lcm_auto:
 +        return (cctxParams->cParams.strategy == ZSTD_fast) && (cctxParams->cParams.targetLength > 0);
 +    }
@@ -25372,10 +25405,10 @@ index 00000000000000..98e359adf5d449
 +#endif /* ZSTD_CWKSP_H */
 diff --git a/lib/zstd/compress/zstd_double_fast.c b/lib/zstd/compress/zstd_double_fast.c
 new file mode 100644
-index 00000000000000..b99172e9d2e445
+index 00000000000000..b0424d23ac57f0
 --- /dev/null
 +++ b/lib/zstd/compress/zstd_double_fast.c
-@@ -0,0 +1,521 @@
+@@ -0,0 +1,519 @@
 +/*
 + * Copyright (c) Yann Collet, Facebook, Inc.
 + * All rights reserved.
@@ -25621,8 +25654,6 @@ index 00000000000000..b99172e9d2e445
 +            offset = (U32)(ip - match);
 +            while (((ip>anchor) & (match>prefixLowest)) && (ip[-1] == match[-1])) { ip--; match--; mLength++; } /* catch up */
 +        }
-+
-+        /* fall-through */
 +
 +_match_found:
 +        offset_2 = offset_1;
@@ -34391,10 +34422,10 @@ index 00000000000000..8c1a79d666f89a
 +#endif /* ZSTD_DDICT_H */
 diff --git a/lib/zstd/decompress/zstd_decompress.c b/lib/zstd/decompress/zstd_decompress.c
 new file mode 100644
-index 00000000000000..099f708acd16e3
+index 00000000000000..7a39dc799881a3
 --- /dev/null
 +++ b/lib/zstd/decompress/zstd_decompress.c
-@@ -0,0 +1,2075 @@
+@@ -0,0 +1,2082 @@
 +/*
 + * Copyright (c) Yann Collet, Facebook, Inc.
 + * All rights reserved.
@@ -34850,7 +34881,9 @@ index 00000000000000..099f708acd16e3
 +        }
 +        switch(dictIDSizeCode)
 +        {
-+            default: assert(0);  /* impossible */
++            default:
++                assert(0);  /* impossible */
++                ZSTD_FALLTHROUGH;
 +            case 0 : break;
 +            case 1 : dictID = ip[pos]; pos++; break;
 +            case 2 : dictID = MEM_readLE16(ip+pos); pos+=2; break;
@@ -34858,7 +34891,9 @@ index 00000000000000..099f708acd16e3
 +        }
 +        switch(fcsID)
 +        {
-+            default: assert(0);  /* impossible */
++            default:
++                assert(0);  /* impossible */
++                ZSTD_FALLTHROUGH;
 +            case 0 : if (singleSegment) frameContentSize = ip[pos]; break;
 +            case 1 : frameContentSize = MEM_readLE16(ip+pos)+256; break;
 +            case 2 : frameContentSize = MEM_readLE32(ip+pos); break;
@@ -35344,7 +35379,7 @@ index 00000000000000..099f708acd16e3
 +    switch (dctx->dictUses) {
 +    default:
 +        assert(0 /* Impossible */);
-+        /* fall-through */
++        ZSTD_FALLTHROUGH;
 +    case ZSTD_dont_use:
 +        ZSTD_clearDict(dctx);
 +        return NULL;
@@ -35408,7 +35443,9 @@ index 00000000000000..099f708acd16e3
 +    {
 +    default:   /* should not happen */
 +        assert(0);
++        ZSTD_FALLTHROUGH;
 +    case ZSTDds_getFrameHeaderSize:
++        ZSTD_FALLTHROUGH;
 +    case ZSTDds_decodeFrameHeader:
 +        return ZSTDnit_frameHeader;
 +    case ZSTDds_decodeBlockHeader:
@@ -35420,6 +35457,7 @@ index 00000000000000..099f708acd16e3
 +    case ZSTDds_checkChecksum:
 +        return ZSTDnit_checksum;
 +    case ZSTDds_decodeSkippableHeader:
++        ZSTD_FALLTHROUGH;
 +    case ZSTDds_skipFrame:
 +        return ZSTDnit_skippableFrame;
 +    }
@@ -36232,7 +36270,7 @@ index 00000000000000..099f708acd16e3
 +            zds->legacyVersion = 0;
 +            zds->hostageByte = 0;
 +            zds->expectedOutBuffer = *output;
-+            /* fall-through */
++            ZSTD_FALLTHROUGH;
 +
 +        case zdss_loadHeader :
 +            DEBUGLOG(5, "stage zdss_loadHeader (srcSize : %u)", (U32)(iend - ip));
@@ -36343,7 +36381,7 @@ index 00000000000000..099f708acd16e3
 +                        zds->outBuffSize = neededOutBuffSize;
 +            }   }   }
 +            zds->streamStage = zdss_read;
-+            /* fall-through */
++            ZSTD_FALLTHROUGH;
 +
 +        case zdss_read:
 +            DEBUGLOG(5, "stage zdss_read");
@@ -36362,7 +36400,7 @@ index 00000000000000..099f708acd16e3
 +            }   }
 +            if (ip==iend) { someMoreWork = 0; break; }   /* no more input */
 +            zds->streamStage = zdss_load;
-+            /* fall-through */
++            ZSTD_FALLTHROUGH;
 +
 +        case zdss_load:
 +            {   size_t const neededInSize = ZSTD_nextSrcSizeToDecompress(zds);
@@ -36472,7 +36510,7 @@ index 00000000000000..099f708acd16e3
 +}
 diff --git a/lib/zstd/decompress/zstd_decompress_block.c b/lib/zstd/decompress/zstd_decompress_block.c
 new file mode 100644
-index 00000000000000..cd6eba55a21c45
+index 00000000000000..2d101d9a842eca
 --- /dev/null
 +++ b/lib/zstd/decompress/zstd_decompress_block.c
 @@ -0,0 +1,1540 @@
@@ -36568,7 +36606,7 @@ index 00000000000000..cd6eba55a21c45
 +        case set_repeat:
 +            DEBUGLOG(5, "set_repeat flag : re-using stats from previous compressed literals block");
 +            RETURN_ERROR_IF(dctx->litEntropy==0, dictionary_corrupted, "");
-+            /* fall-through */
++            ZSTD_FALLTHROUGH;
 +
 +        case set_compressed:
 +            RETURN_ERROR_IF(srcSize < 5, corruption_detected, "srcSize >= MIN_CBLOCK_SIZE == 3; here we need up to 5 for case 3");
@@ -38293,7 +38331,7 @@ index 00000000000000..4b9052f687558a
 +
 +#endif /* ZSTD_DECOMPRESS_INTERNAL_H */
 diff --git a/lib/zstd/decompress_sources.h b/lib/zstd/decompress_sources.h
-index d82cea4316f5ab..f35bef03eb224b 100644
+index 9ba367b4414934..0fbec508f285e3 100644
 --- a/lib/zstd/decompress_sources.h
 +++ b/lib/zstd/decompress_sources.h
 @@ -16,8 +16,13 @@
@@ -42539,11 +42577,11 @@ index a282624ee1553c..00000000000000
 -}
 diff --git a/lib/zstd/zstd_compress_module.c b/lib/zstd/zstd_compress_module.c
 new file mode 100644
-index 00000000000000..37d08ff43e6e90
+index 00000000000000..65548a4bb93410
 --- /dev/null
 +++ b/lib/zstd/zstd_compress_module.c
-@@ -0,0 +1,124 @@
-+// SPDX-License-Identifier: GPL-2.0-only
+@@ -0,0 +1,160 @@
++// SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
 +/*
 + * Copyright (c) Facebook, Inc.
 + * All rights reserved.
@@ -42561,6 +42599,43 @@ index 00000000000000..37d08ff43e6e90
 +
 +#include "common/zstd_deps.h"
 +#include "common/zstd_internal.h"
++
++#define ZSTD_FORWARD_IF_ERR(ret)            \
++	do {                                \
++		size_t const __ret = (ret); \
++		if (ZSTD_isError(__ret))    \
++			return __ret;       \
++	} while (0)
++
++static size_t zstd_cctx_init(zstd_cctx *cctx, const zstd_parameters *parameters,
++	unsigned long long pledged_src_size)
++{
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_reset(
++		cctx, ZSTD_reset_session_and_parameters));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setPledgedSrcSize(
++		cctx, pledged_src_size));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_windowLog, parameters->cParams.windowLog));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_hashLog, parameters->cParams.hashLog));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_chainLog, parameters->cParams.chainLog));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_searchLog, parameters->cParams.searchLog));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_minMatch, parameters->cParams.minMatch));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_targetLength, parameters->cParams.targetLength));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_strategy, parameters->cParams.strategy));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_contentSizeFlag, parameters->fParams.contentSizeFlag));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_checksumFlag, parameters->fParams.checksumFlag));
++	ZSTD_FORWARD_IF_ERR(ZSTD_CCtx_setParameter(
++		cctx, ZSTD_c_dictIDFlag, !parameters->fParams.noDictIDFlag));
++	return 0;
++}
 +
 +int zstd_min_clevel(void)
 +{
@@ -42604,7 +42679,8 @@ index 00000000000000..37d08ff43e6e90
 +size_t zstd_compress_cctx(zstd_cctx *cctx, void *dst, size_t dst_capacity,
 +	const void *src, size_t src_size, const zstd_parameters *parameters)
 +{
-+	return ZSTD_compress_advanced(cctx, dst, dst_capacity, src, src_size, NULL, 0, *parameters);
++	ZSTD_FORWARD_IF_ERR(zstd_cctx_init(cctx, parameters, src_size));
++	return ZSTD_compress2(cctx, dst, dst_capacity, src, src_size);
 +}
 +EXPORT_SYMBOL(zstd_compress_cctx);
 +
@@ -42618,7 +42694,6 @@ index 00000000000000..37d08ff43e6e90
 +	unsigned long long pledged_src_size, void *workspace, size_t workspace_size)
 +{
 +	zstd_cstream *cstream;
-+	size_t ret;
 +
 +	if (workspace == NULL)
 +		return NULL;
@@ -42631,8 +42706,7 @@ index 00000000000000..37d08ff43e6e90
 +	if (pledged_src_size == 0)
 +		pledged_src_size = ZSTD_CONTENTSIZE_UNKNOWN;
 +
-+	ret = ZSTD_initCStream_advanced(cstream, NULL, 0, *parameters, pledged_src_size);
-+	if (ZSTD_isError(ret))
++	if (ZSTD_isError(zstd_cctx_init(cstream, parameters, pledged_src_size)))
 +		return NULL;
 +
 +	return cstream;
@@ -42669,11 +42743,11 @@ index 00000000000000..37d08ff43e6e90
 +MODULE_DESCRIPTION("Zstd Compressor");
 diff --git a/lib/zstd/zstd_decompress_module.c b/lib/zstd/zstd_decompress_module.c
 new file mode 100644
-index 00000000000000..15005cdb9eca82
+index 00000000000000..f4ed952ed4852a
 --- /dev/null
 +++ b/lib/zstd/zstd_decompress_module.c
 @@ -0,0 +1,105 @@
-+// SPDX-License-Identifier: GPL-2.0-only
++// SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
 +/*
 + * Copyright (c) Facebook, Inc.
 + * All rights reserved.
@@ -44078,7 +44152,7 @@ index 55e1b4cba8088c..00000000000000
 -
 -#endif /* ZSTD_OPT_H_91842398743 */
 
-From a26f03d71ea9757c00b5de6e54be4629bccb2c37 Mon Sep 17 00:00:00 2001
+From 9267b28131e7d8fc0e7b520203d38a3159454166 Mon Sep 17 00:00:00 2001
 From: Nick Terrell <terrelln@fb.com>
 Date: Mon, 26 Apr 2021 16:34:03 -0700
 Subject: [PATCH 4/4] MAINTAINERS: Add maintainer entry for zstd

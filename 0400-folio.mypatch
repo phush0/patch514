@@ -13,14 +13,13 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h       | 2 +-
  include/linux/page_ref.h | 4 ++--
  2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 7ca22e6e694a..8dd65290bac0 100644
+index 7ca22e6e694a84..8dd65290bac0d7 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -755,7 +755,7 @@ static inline int put_page_testzero(struct page *page)
@@ -33,7 +32,7 @@ index 7ca22e6e694a..8dd65290bac0 100644
  	return page_ref_add_unless(page, 1, 0);
  }
 diff --git a/include/linux/page_ref.h b/include/linux/page_ref.h
-index 7ad46f45df39..3a799de8ad52 100644
+index 7ad46f45df3967..3a799de8ad5261 100644
 --- a/include/linux/page_ref.h
 +++ b/include/linux/page_ref.h
 @@ -161,9 +161,9 @@ static inline int page_ref_dec_return(struct page *page)
@@ -48,9 +47,6 @@ index 7ad46f45df39..3a799de8ad52 100644
  
  	if (page_ref_tracepoint_active(page_ref_mod_unless))
  		__page_ref_mod_unless(page, nr, ret);
--- 
-2.33.0
-
 
 From ad465e4b272c5f41d5a2ff5b5f6a924b2aceec03 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -71,7 +67,6 @@ Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/core-api/mm-api.rst |  1 +
  include/linux/mm.h                | 75 +++++++++++++++++++++++++++++++
@@ -80,7 +75,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 164 insertions(+)
 
 diff --git a/Documentation/core-api/mm-api.rst b/Documentation/core-api/mm-api.rst
-index a42f9baddfbf..2a94e6164f80 100644
+index a42f9baddfbf8c..2a94e6164f80f5 100644
 --- a/Documentation/core-api/mm-api.rst
 +++ b/Documentation/core-api/mm-api.rst
 @@ -95,6 +95,7 @@ More Memory Management Functions
@@ -92,7 +87,7 @@ index a42f9baddfbf..2a94e6164f80 100644
     :internal:
  .. kernel-doc:: include/linux/mmzone.h
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 8dd65290bac0..ab5f97812a9f 100644
+index 8dd65290bac0d7..ab5f97812a9f42 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -949,6 +949,20 @@ static inline unsigned int compound_order(struct page *page)
@@ -192,7 +187,7 @@ index 8dd65290bac0..ab5f97812a9f 100644
  /*
   * Flags passed to show_mem() and show_free_areas() to suppress output in
 diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
-index 52bbd2b7cb46..5749448b486d 100644
+index 52bbd2b7cb4658..5749448b486d30 100644
 --- a/include/linux/mm_types.h
 +++ b/include/linux/mm_types.h
 @@ -231,6 +231,66 @@ struct page {
@@ -263,7 +258,7 @@ index 52bbd2b7cb46..5749448b486d 100644
  {
  	return &page[1].compound_mapcount;
 diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
-index 5922031ffab6..70ede8345538 100644
+index 5922031ffab6e5..70ede834553865 100644
 --- a/include/linux/page-flags.h
 +++ b/include/linux/page-flags.h
 @@ -191,6 +191,34 @@ static inline unsigned long _compound_head(const struct page *page)
@@ -301,9 +296,6 @@ index 5922031ffab6..70ede8345538 100644
  static __always_inline int PageTail(struct page *page)
  {
  	return READ_ONCE(page->compound_head) & 1;
--- 
-2.33.0
-
 
 From 0b8e01425ccf997abe1f515a445e4d39fc467f2f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -323,13 +315,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h | 15 +++++++++++++++
  1 file changed, 15 insertions(+)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index ab5f97812a9f..3f3c5e071b60 100644
+index ab5f97812a9f42..3f3c5e071b60db 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1144,6 +1144,11 @@ static inline enum zone_type page_zonenum(const struct page *page)
@@ -361,9 +352,6 @@ index ab5f97812a9f..3f3c5e071b60 100644
  #ifdef SECTION_IN_PAGE_FLAGS
  static inline void set_page_section(struct page *page, unsigned long section)
  {
--- 
-2.33.0
-
 
 From 36da294882c1ab5ee0765e103d89aaded9011c6a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -384,13 +372,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/vmstat.h | 107 +++++++++++++++++++++++++++++++++++++++++
  1 file changed, 107 insertions(+)
 
 diff --git a/include/linux/vmstat.h b/include/linux/vmstat.h
-index d6a6cf53b127..241bd0f53fb9 100644
+index d6a6cf53b1278f..241bd0f53fb976 100644
 --- a/include/linux/vmstat.h
 +++ b/include/linux/vmstat.h
 @@ -415,6 +415,78 @@ static inline void drain_zonestat(struct zone *zone,
@@ -519,9 +506,6 @@ index d6a6cf53b127..241bd0f53fb9 100644
 +	lruvec_stat_mod_folio(folio, idx, -folio_nr_pages(folio));
 +}
  #endif /* _LINUX_VMSTAT_H */
--- 
-2.33.0
-
 
 From 827c42a45910d4e62ea2e4bb37639ee0e3aacbe1 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -541,13 +525,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mmdebug.h | 20 ++++++++++++++++++++
  1 file changed, 20 insertions(+)
 
 diff --git a/include/linux/mmdebug.h b/include/linux/mmdebug.h
-index 1935d4c72d10..d7285f8148a3 100644
+index 1935d4c72d1042..d7285f8148a3b0 100644
 --- a/include/linux/mmdebug.h
 +++ b/include/linux/mmdebug.h
 @@ -22,6 +22,13 @@ void dump_mm(const struct mm_struct *mm);
@@ -596,9 +579,6 @@ index 1935d4c72d10..d7285f8148a3 100644
  #define VM_WARN_ONCE(cond, format...) BUILD_BUG_ON_INVALID(cond)
  #define VM_WARN(cond, format...) BUILD_BUG_ON_INVALID(cond)
  #endif
--- 
-2.33.0
-
 
 From c403e966d71542220f10b8f910c293e517fced90 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -617,14 +597,13 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/core-api/mm-api.rst |  1 +
  include/linux/page_ref.h          | 88 ++++++++++++++++++++++++++++++-
  2 files changed, 88 insertions(+), 1 deletion(-)
 
 diff --git a/Documentation/core-api/mm-api.rst b/Documentation/core-api/mm-api.rst
-index 2a94e6164f80..5c459ee2acce 100644
+index 2a94e6164f80f5..5c459ee2accee8 100644
 --- a/Documentation/core-api/mm-api.rst
 +++ b/Documentation/core-api/mm-api.rst
 @@ -98,4 +98,5 @@ More Memory Management Functions
@@ -634,7 +613,7 @@ index 2a94e6164f80..5c459ee2acce 100644
 +.. kernel-doc:: include/linux/page_ref.h
  .. kernel-doc:: include/linux/mmzone.h
 diff --git a/include/linux/page_ref.h b/include/linux/page_ref.h
-index 3a799de8ad52..717d53c9ddf1 100644
+index 3a799de8ad5261..717d53c9ddf1e9 100644
 --- a/include/linux/page_ref.h
 +++ b/include/linux/page_ref.h
 @@ -67,9 +67,31 @@ static inline int page_ref_count(const struct page *page)
@@ -823,9 +802,6 @@ index 3a799de8ad52..717d53c9ddf1 100644
 +	page_ref_unfreeze(&folio->page, count);
 +}
  #endif
--- 
-2.33.0
-
 
 From 9abac8687c755677b9a81f955e8bd4c46cbf15b5 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -850,13 +826,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h | 33 ++++++++++++++++++++++++++++-----
  1 file changed, 28 insertions(+), 5 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 3f3c5e071b60..5cfe59f47feb 100644
+index 3f3c5e071b60db..5cfe59f47feb58 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -749,6 +749,11 @@ static inline int put_page_testzero(struct page *page)
@@ -918,9 +893,6 @@ index 3f3c5e071b60..5cfe59f47feb 100644
  }
  
  /*
--- 
-2.33.0
-
 
 From 8c75132559e65fa359954257ea2d10e83c9e2de3 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -940,13 +912,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h | 26 +++++++++++++++++---------
  1 file changed, 17 insertions(+), 9 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 5cfe59f47feb..d86b8548036e 100644
+index 5cfe59f47feb58..d86b8548036e81 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1223,18 +1223,26 @@ static inline bool is_pci_p2pdma_page(const struct page *page)
@@ -985,9 +956,6 @@ index 5cfe59f47feb..d86b8548036e 100644
  }
  
  bool __must_check try_grab_page(struct page *page, unsigned int flags);
--- 
-2.33.0
-
 
 From d2e511922cb5c314a6df404b5b3f8c17feb274c9 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -1014,7 +982,6 @@ Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/page_ref.h | 66 +++++++++++++++++++++++++++++++
  include/linux/pagemap.h  | 84 ++--------------------------------------
@@ -1022,7 +989,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 90 insertions(+), 80 deletions(-)
 
 diff --git a/include/linux/page_ref.h b/include/linux/page_ref.h
-index 717d53c9ddf1..2e677e6ad09f 100644
+index 717d53c9ddf1e9..2e677e6ad09fcf 100644
 --- a/include/linux/page_ref.h
 +++ b/include/linux/page_ref.h
 @@ -247,6 +247,72 @@ static inline bool folio_ref_add_unless(struct folio *folio, int nr, int u)
@@ -1099,7 +1066,7 @@ index 717d53c9ddf1..2e677e6ad09f 100644
  {
  	int ret = likely(atomic_cmpxchg(&page->_refcount, count, 0) == count);
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index ed02aa522263..db1726b1bc1c 100644
+index ed02aa5222634b..db1726b1bc1c18 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -172,91 +172,15 @@ static inline struct address_space *page_mapping_file(struct page *page)
@@ -1199,7 +1166,7 @@ index ed02aa522263..db1726b1bc1c 100644
  
  /**
 diff --git a/mm/filemap.c b/mm/filemap.c
-index d1458ecf2f51..e7ce8bb137e0 100644
+index d1458ecf2f51ec..e7ce8bb137e051 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1746,6 +1746,26 @@ pgoff_t page_cache_prev_miss(struct address_space *mapping,
@@ -1229,9 +1196,6 @@ index d1458ecf2f51..e7ce8bb137e0 100644
  /*
   * mapping_get_entry - Get a page cache entry.
   * @mapping: the address_space to search
--- 
-2.33.0
-
 
 From d9d05dc43b7ced2b7b5571c9cf2a022e30419fbb Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -1256,13 +1220,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/page-flags.h | 219 ++++++++++++++++++++++++++-----------
  1 file changed, 156 insertions(+), 63 deletions(-)
 
 diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
-index 70ede8345538..c36e884ebbc1 100644
+index 70ede834553865..c36e884ebbc183 100644
 --- a/include/linux/page-flags.h
 +++ b/include/linux/page-flags.h
 @@ -143,6 +143,8 @@ enum pageflags {
@@ -1678,9 +1641,6 @@ index 70ede8345538..c36e884ebbc1 100644
  #undef PF_ANY
  #undef PF_HEAD
  #undef PF_ONLY_HEAD
--- 
-2.33.0
-
 
 From 2dc279f12c27462ac900c9e4bbc558a7a4252f6f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -1701,7 +1661,6 @@ Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/core-api/mm-api.rst |   1 +
  include/linux/mm_inline.h         | 103 +++++++++++++++++++-----------
@@ -1709,7 +1668,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 69 insertions(+), 37 deletions(-)
 
 diff --git a/Documentation/core-api/mm-api.rst b/Documentation/core-api/mm-api.rst
-index 5c459ee2acce..971149f5d241 100644
+index 5c459ee2accee8..971149f5d24164 100644
 --- a/Documentation/core-api/mm-api.rst
 +++ b/Documentation/core-api/mm-api.rst
 @@ -95,6 +95,7 @@ More Memory Management Functions
@@ -1721,7 +1680,7 @@ index 5c459ee2acce..971149f5d241 100644
  .. kernel-doc:: include/linux/mm.h
     :internal:
 diff --git a/include/linux/mm_inline.h b/include/linux/mm_inline.h
-index 355ea1ee32bd..e2ec68b0515c 100644
+index 355ea1ee32bd74..e2ec68b0515c5b 100644
 --- a/include/linux/mm_inline.h
 +++ b/include/linux/mm_inline.h
 @@ -6,27 +6,33 @@
@@ -1890,7 +1849,7 @@ index 355ea1ee32bd..e2ec68b0515c 100644
  }
  #endif
 diff --git a/include/trace/events/pagemap.h b/include/trace/events/pagemap.h
-index 1d28431e85bd..92ad176210ff 100644
+index 1d28431e85bdca..92ad176210ff5b 100644
 --- a/include/trace/events/pagemap.h
 +++ b/include/trace/events/pagemap.h
 @@ -41,7 +41,7 @@ TRACE_EVENT(mm_lru_insertion,
@@ -1902,9 +1861,6 @@ index 1d28431e85bd..92ad176210ff 100644
  		__entry->flags	= trace_pagemap_flags(page);
  	),
  
--- 
-2.33.0
-
 
 From e7531bad15b1d271f8ff8118164c44b8571bb2dc Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -1936,14 +1892,13 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm_types.h | 11 +++++++++
  include/linux/pagemap.h  | 48 ++++++++++++++++++++++++----------------
  2 files changed, 40 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
-index 5749448b486d..f38ab53fcf7c 100644
+index 5749448b486d30..f38ab53fcf7c84 100644
 --- a/include/linux/mm_types.h
 +++ b/include/linux/mm_types.h
 @@ -309,6 +309,12 @@ static inline atomic_t *compound_pincount_ptr(struct page *page)
@@ -1972,7 +1927,7 @@ index 5749448b486d..f38ab53fcf7c 100644
  	void * va;
  #if (PAGE_SIZE < PAGE_FRAG_CACHE_MAX_SIZE)
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index db1726b1bc1c..3279c731ee04 100644
+index db1726b1bc1c18..3279c731ee0472 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -184,42 +184,52 @@ static inline bool page_cache_get_speculative(struct page *page)
@@ -2047,9 +2002,6 @@ index db1726b1bc1c..3279c731ee04 100644
  #ifdef CONFIG_NUMA
  extern struct page *__page_cache_alloc(gfp_t gfp);
  #else
--- 
-2.33.0
-
 
 From 2c5f1f3033b523e4348e03beb7cc23e3db762504 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2071,13 +2023,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 56 +++++++++++++++++++++++++++++++++++++++++
  1 file changed, 56 insertions(+)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 3279c731ee04..f7c165b5991f 100644
+index 3279c731ee0472..f7c165b5991f05 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -386,6 +386,62 @@ static inline bool thp_contains(struct page *head, pgoff_t index)
@@ -2143,9 +2094,6 @@ index 3279c731ee04..f7c165b5991f 100644
  /*
   * Given the page we found in the page cache, return the page corresponding
   * to this index in the file
--- 
-2.33.0
-
 
 From 6e20f318572da17b6cc6752c2c0a8279c33306d6 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2165,13 +2113,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 11 +++++++++++
  1 file changed, 11 insertions(+)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index f7c165b5991f..bd0e7e91bfd4 100644
+index f7c165b5991f05..bd0e7e91bfd403 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -406,6 +406,17 @@ static inline pgoff_t folio_index(struct folio *folio)
@@ -2192,9 +2139,6 @@ index f7c165b5991f..bd0e7e91bfd4 100644
  /**
   * folio_file_page - The page for a particular index.
   * @folio: The folio which contains this index.
--- 
-2.33.0
-
 
 From be15cfc4819547e495636d1b0caf85c9e741fe1f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2211,13 +2155,12 @@ Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 21 +++++++++++++++++++++
  1 file changed, 21 insertions(+)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index bd0e7e91bfd4..aa71fa82d6be 100644
+index bd0e7e91bfd403..aa71fa82d6beff 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -562,6 +562,27 @@ static inline loff_t page_file_offset(struct page *page)
@@ -2248,9 +2191,6 @@ index bd0e7e91bfd4..aa71fa82d6be 100644
  extern pgoff_t linear_hugepage_index(struct vm_area_struct *vma,
  				     unsigned long address);
  
--- 
-2.33.0
-
 
 From 751bd3a208cee4bd54a97a385167e3e7cd3072bd Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2294,7 +2234,6 @@ Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/core-api/mm-api.rst |  2 ++
  include/linux/mm.h                | 14 -------------
@@ -2308,7 +2247,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  create mode 100644 mm/folio-compat.c
 
 diff --git a/Documentation/core-api/mm-api.rst b/Documentation/core-api/mm-api.rst
-index 971149f5d241..395835f9289f 100644
+index 971149f5d24164..395835f9289f1e 100644
 --- a/Documentation/core-api/mm-api.rst
 +++ b/Documentation/core-api/mm-api.rst
 @@ -101,3 +101,5 @@ More Memory Management Functions
@@ -2318,7 +2257,7 @@ index 971149f5d241..395835f9289f 100644
 +.. kernel-doc:: mm/util.c
 +   :functions: folio_mapping
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index d86b8548036e..634f60a6f663 100644
+index d86b8548036e81..634f60a6f663fb 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1754,19 +1754,6 @@ void page_address_init(void);
@@ -2350,7 +2289,7 @@ index d86b8548036e..634f60a6f663 100644
  /*
   * Return true only if the page has been allocated with
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index aa71fa82d6be..a0925a89ba11 100644
+index aa71fa82d6beff..a0925a89ba1162 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -162,14 +162,45 @@ static inline void filemap_nr_thps_dec(struct address_space *mapping)
@@ -2402,7 +2341,7 @@ index aa71fa82d6be..a0925a89ba11 100644
  
  static inline bool page_cache_add_speculative(struct page *page, int count)
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index 6f5a43251593..3d3d85354026 100644
+index 6f5a43251593c8..3d3d85354026fc 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -320,6 +320,12 @@ struct vma_swap_readahead {
@@ -2419,7 +2358,7 @@ index 6f5a43251593..3d3d85354026 100644
  void workingset_age_nonresident(struct lruvec *lruvec, unsigned long nr_pages);
  void *workingset_eviction(struct page *page, struct mem_cgroup *target_memcg);
 diff --git a/mm/Makefile b/mm/Makefile
-index e3436741d539..d7488bcbbb2b 100644
+index e3436741d5391c..d7488bcbbb2b8a 100644
 --- a/mm/Makefile
 +++ b/mm/Makefile
 @@ -46,7 +46,7 @@ mmu-$(CONFIG_MMU)	+= process_vm_access.o
@@ -2433,7 +2372,7 @@ index e3436741d539..d7488bcbbb2b 100644
  			   mm_init.o percpu.o slab_common.o \
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
 new file mode 100644
-index 000000000000..5e107aa30a62
+index 00000000000000..5e107aa30a6234
 --- /dev/null
 +++ b/mm/folio-compat.c
 @@ -0,0 +1,13 @@
@@ -2451,7 +2390,7 @@ index 000000000000..5e107aa30a62
 +}
 +EXPORT_SYMBOL(page_mapping);
 diff --git a/mm/swapfile.c b/mm/swapfile.c
-index 1e07d1c776f2..3a6c094310da 100644
+index 1e07d1c776f2ae..3a6c094310daa1 100644
 --- a/mm/swapfile.c
 +++ b/mm/swapfile.c
 @@ -3528,13 +3528,13 @@ struct swap_info_struct *page_swap_info(struct page *page)
@@ -2473,7 +2412,7 @@ index 1e07d1c776f2..3a6c094310da 100644
  pgoff_t __page_file_index(struct page *page)
  {
 diff --git a/mm/util.c b/mm/util.c
-index 9043d03750a7..1cde6218d6d1 100644
+index 9043d03750a733..1cde6218d6d142 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -686,30 +686,36 @@ struct anon_vma *page_anon_vma(struct page *page)
@@ -2525,9 +2464,6 @@ index 9043d03750a7..1cde6218d6d1 100644
  
  /* Slow path of page_mapcount() for compound pages */
  int __page_mapcount(struct page *page)
--- 
-2.33.0
-
 
 From a4c400a6e9b513dab909f50c060210ea494f8e1d Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2549,7 +2485,6 @@ Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h |  3 ++-
  mm/filemap.c            | 29 ++++++++++++-----------------
@@ -2557,7 +2492,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 20 insertions(+), 18 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index a0925a89ba11..a13edc7a2916 100644
+index a0925a89ba1162..a13edc7a291614 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -658,7 +658,8 @@ extern int __lock_page_killable(struct page *page);
@@ -2571,7 +2506,7 @@ index a0925a89ba11..a13edc7a2916 100644
  /*
   * Return true if the page was successfully locked
 diff --git a/mm/filemap.c b/mm/filemap.c
-index e7ce8bb137e0..f936dd963331 100644
+index e7ce8bb137e051..f936dd963331e3 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1435,29 +1435,24 @@ static inline bool clear_bit_unlock_is_negative_byte(long nr, volatile void *mem
@@ -2617,7 +2552,7 @@ index e7ce8bb137e0..f936dd963331 100644
  /**
   * end_page_private_2 - Clear PG_private_2 and release any waiters
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 5e107aa30a62..91b3d00a92f7 100644
+index 5e107aa30a6234..91b3d00a92f744 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -11,3 +11,9 @@ struct address_space *page_mapping(struct page *page)
@@ -2630,9 +2565,6 @@ index 5e107aa30a62..91b3d00a92f7 100644
 +	return folio_unlock(page_folio(page));
 +}
 +EXPORT_SYMBOL(unlock_page);
--- 
-2.33.0
-
 
 From ed419fb43dccf9cc8efee0b0af148521c825f883 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2654,14 +2586,13 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 24 +++++++++++++++++++-----
  mm/filemap.c            | 29 +++++++++++++++--------------
  2 files changed, 34 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index a13edc7a2916..c3673c55125b 100644
+index a13edc7a291614..c3673c55125bf9 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -653,7 +653,7 @@ static inline bool wake_page_match(struct wait_page_queue *wait_page,
@@ -2716,7 +2647,7 @@ index a13edc7a2916..c3673c55125b 100644
  
  /*
 diff --git a/mm/filemap.c b/mm/filemap.c
-index f936dd963331..0c8b5a043e20 100644
+index f936dd963331e3..0c8b5a043e2005 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1187,7 +1187,7 @@ static void wake_up_page(struct page *page, int bit)
@@ -2799,9 +2730,6 @@ index f936dd963331..0c8b5a043e20 100644
  /*
   * Synchronous readahead happens when we don't even find a page in the page
   * cache at all.  We don't want to perform IO under the mmap sem, so if we have
--- 
-2.33.0
-
 
 From 6330d4f416200d6c3f6f3380cd9117d75aa9de8e Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2825,14 +2753,13 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 15 ++++++++++-----
  mm/filemap.c            | 17 +++++++++--------
  2 files changed, 19 insertions(+), 13 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index c3673c55125b..88727c74e059 100644
+index c3673c55125bf9..88727c74e0594f 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -654,7 +654,7 @@ static inline bool wake_page_match(struct wait_page_queue *wait_page,
@@ -2872,7 +2799,7 @@ index c3673c55125b..88727c74e059 100644
  
  /*
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 0c8b5a043e20..45983e98cf23 100644
+index 0c8b5a043e2005..45983e98cf236f 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1589,14 +1589,13 @@ void __folio_lock(struct folio *folio)
@@ -2928,9 +2855,6 @@ index 0c8b5a043e20..45983e98cf23 100644
  			/*
  			 * We didn't have the right flags to drop the mmap_lock,
  			 * but all fault_handlers only check for fatal signals
--- 
-2.33.0
-
 
 From bc3081532b0aedb56fa54f4eac1f8ef1b7c6185b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -2953,7 +2877,6 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  fs/io_uring.c           |  2 +-
  include/linux/pagemap.h | 17 -----------------
@@ -2961,7 +2884,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 17 insertions(+), 33 deletions(-)
 
 diff --git a/fs/io_uring.c b/fs/io_uring.c
-index a2e20a6fbfed..f69c17bee703 100644
+index a2e20a6fbfed8e..f69c17bee70397 100644
 --- a/fs/io_uring.c
 +++ b/fs/io_uring.c
 @@ -3191,7 +3191,7 @@ static int io_read_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
@@ -2974,7 +2897,7 @@ index a2e20a6fbfed..f69c17bee703 100644
   * This gets called when the page is unlocked, and we generally expect that to
   * happen when the page IO is completed and the page is now uptodate. This will
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 88727c74e059..6f631a3e42dc 100644
+index 88727c74e0594f..6f631a3e42dce6 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -655,7 +655,6 @@ static inline bool wake_page_match(struct wait_page_queue *wait_page,
@@ -3009,7 +2932,7 @@ index 88727c74e059..6f631a3e42dc 100644
   * lock_page_or_retry - Lock the page, unless this would block and the
   * caller indicated that it can handle a retry.
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 45983e98cf23..554c6150eda0 100644
+index 45983e98cf236f..554c6150eda067 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1597,18 +1597,18 @@ int __folio_lock_killable(struct folio *folio)
@@ -3089,9 +3012,6 @@ index 45983e98cf23..554c6150eda0 100644
  	return error;
  }
  
--- 
-2.33.0
-
 
 From f8770b412a3311ffe1f1e13b951ce5f28bde10a7 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3111,14 +3031,13 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 26 ++++++++++++++++++--------
  mm/filemap.c            |  4 ++--
  2 files changed, 20 insertions(+), 10 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 6f631a3e42dc..03fea8bbfd8e 100644
+index 6f631a3e42dce6..03fea8bbfd8e93 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -733,23 +733,33 @@ extern void wait_on_page_bit(struct page *page, int bit_nr);
@@ -3164,7 +3083,7 @@ index 6f631a3e42dc..03fea8bbfd8e 100644
  
  int put_and_wait_on_page_locked(struct page *page, int state);
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 554c6150eda0..50f901f25d82 100644
+index 554c6150eda067..50f901f25d82cb 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1649,9 +1649,9 @@ int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
@@ -3179,9 +3098,6 @@ index 554c6150eda0..50f901f25d82 100644
  		return 0;
  	}
  	if (flags & FAULT_FLAG_KILLABLE) {
--- 
-2.33.0
-
 
 From 656da613a880c8b70fc77b6daba7a5e8aea6fbca Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3202,7 +3118,6 @@ Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 11 +++++++----
  mm/filemap.c            | 22 ++++++++++------------
@@ -3210,7 +3125,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 21 insertions(+), 20 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 03fea8bbfd8e..626dbccbfb90 100644
+index 03fea8bbfd8e93..626dbccbfb90aa 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -655,7 +655,7 @@ static inline bool wake_page_match(struct wait_page_queue *wait_page,
@@ -3243,7 +3158,7 @@ index 03fea8bbfd8e..626dbccbfb90 100644
  
  /*
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 50f901f25d82..9fb358fbf7a7 100644
+index 50f901f25d82cb..9fb358fbf7a7c7 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1625,48 +1625,46 @@ static int __folio_lock_async(struct folio *folio, struct wait_page_queue *wait)
@@ -3306,7 +3221,7 @@ index 50f901f25d82..9fb358fbf7a7 100644
  
  /**
 diff --git a/mm/memory.c b/mm/memory.c
-index 25fc46e87214..36dbf5b1555d 100644
+index 25fc46e872142a..36dbf5b1555db9 100644
 --- a/mm/memory.c
 +++ b/mm/memory.c
 @@ -4257,7 +4257,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
@@ -3345,9 +3260,6 @@ index 25fc46e87214..36dbf5b1555d 100644
   */
  vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
  			   unsigned int flags, struct pt_regs *regs)
--- 
-2.33.0
-
 
 From 2bc94d2e69b0f80eb0a4325d22ea3feac28427ab Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3369,7 +3281,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/swap.h |  1 -
  mm/filemap.c         |  3 ++-
@@ -3379,7 +3290,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  5 files changed, 21 insertions(+), 18 deletions(-)
 
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index 3d3d85354026..8394716a002b 100644
+index 3d3d85354026fc..8394716a002b5f 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -371,7 +371,6 @@ extern void lru_add_drain(void);
@@ -3391,7 +3302,7 @@ index 3d3d85354026..8394716a002b 100644
  extern void deactivate_page(struct page *page);
  extern void mark_page_lazyfree(struct page *page);
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 9fb358fbf7a7..874e2c6970cf 100644
+index 9fb358fbf7a7c7..874e2c6970cf2e 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1529,8 +1529,9 @@ void end_page_writeback(struct page *page)
@@ -3406,7 +3317,7 @@ index 9fb358fbf7a7..874e2c6970cf 100644
  
  	/*
 diff --git a/mm/internal.h b/mm/internal.h
-index 31ff935b2547..1a8851b73031 100644
+index 31ff935b2547d5..1a8851b7303101 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
 @@ -35,6 +35,7 @@
@@ -3418,7 +3329,7 @@ index 31ff935b2547..1a8851b73031 100644
  void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
  		unsigned long floor, unsigned long ceiling);
 diff --git a/mm/page_io.c b/mm/page_io.c
-index c493ce9ebcf5..d597bc6e6e45 100644
+index c493ce9ebcf507..d597bc6e6e4517 100644
 --- a/mm/page_io.c
 +++ b/mm/page_io.c
 @@ -38,7 +38,7 @@ void end_swap_bio_write(struct bio *bio)
@@ -3440,7 +3351,7 @@ index c493ce9ebcf5..d597bc6e6e45 100644
  			 * the normal direct-to-bio case as it could
  			 * be temporary.
 diff --git a/mm/swap.c b/mm/swap.c
-index 19600430e536..095a5ec6f986 100644
+index 19600430e536b1..095a5ec6f986c1 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -228,11 +228,13 @@ static void pagevec_lru_move_fn(struct pagevec *pvec,
@@ -3495,9 +3406,6 @@ index 19600430e536..095a5ec6f986 100644
  			pagevec_lru_move_fn(pvec, pagevec_move_tail_fn);
  		local_unlock_irqrestore(&lru_rotate.lock, flags);
  	}
--- 
-2.33.0
-
 
 From 5d1f3c9410584ca23df01c6f966a5f8ad80686a5 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3520,7 +3428,6 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h |  3 ++-
  mm/filemap.c            | 43 ++++++++++++++++++++---------------------
@@ -3528,7 +3435,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 29 insertions(+), 23 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 626dbccbfb90..66a019178550 100644
+index 626dbccbfb90aa..66a01917855073 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -768,7 +768,8 @@ static inline int wait_on_page_locked_killable(struct page *page)
@@ -3542,7 +3449,7 @@ index 626dbccbfb90..66a019178550 100644
  
  void __set_page_dirty(struct page *, struct address_space *, int warn);
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 874e2c6970cf..e9670b690bc4 100644
+index 874e2c6970cf2e..e9670b690bc4a6 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1175,11 +1175,11 @@ static void wake_up_page_bit(struct page *page, int bit_nr)
@@ -3619,7 +3526,7 @@ index 874e2c6970cf..e9670b690bc4 100644
  /*
   * After completing I/O on a page, call this routine to update the page
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 91b3d00a92f7..526843d03d58 100644
+index 91b3d00a92f744..526843d03d582c 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -17,3 +17,9 @@ void unlock_page(struct page *page)
@@ -3632,9 +3539,6 @@ index 91b3d00a92f7..526843d03d58 100644
 +	return folio_end_writeback(page_folio(page));
 +}
 +EXPORT_SYMBOL(end_page_writeback);
--- 
-2.33.0
-
 
 From 788259115f1acae4ce3a35ec10f1fbd007e9288f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3659,7 +3563,6 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  fs/afs/write.c          |  9 ++++----
  include/linux/pagemap.h |  3 ++-
@@ -3668,7 +3571,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 46 insertions(+), 20 deletions(-)
 
 diff --git a/fs/afs/write.c b/fs/afs/write.c
-index c0534697268e..c2e2ab99c25e 100644
+index c0534697268ef8..c2e2ab99c25e98 100644
 --- a/fs/afs/write.c
 +++ b/fs/afs/write.c
 @@ -845,7 +845,8 @@ int afs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
@@ -3702,7 +3605,7 @@ index c0534697268e..c2e2ab99c25e 100644
  	}
  
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 66a019178550..0c5f53368fe9 100644
+index 66a01917855073..0c5f53368fe984 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -767,7 +767,8 @@ static inline int wait_on_page_locked_killable(struct page *page)
@@ -3716,7 +3619,7 @@ index 66a019178550..0c5f53368fe9 100644
  void folio_end_writeback(struct folio *folio);
  void wait_for_stable_page(struct page *page);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 526843d03d58..41275dac7a92 100644
+index 526843d03d582c..41275dac7a92a7 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -23,3 +23,9 @@ void end_page_writeback(struct page *page)
@@ -3730,7 +3633,7 @@ index 526843d03d58..41275dac7a92 100644
 +}
 +EXPORT_SYMBOL_GPL(wait_on_page_writeback);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 9f63548f247c..c2c00e1533ad 100644
+index 9f63548f247c33..c2c00e1533ad9a 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2830,33 +2830,51 @@ int __test_set_page_writeback(struct page *page, bool keep_write)
@@ -3800,9 +3703,6 @@ index 9f63548f247c..c2c00e1533ad 100644
  
  /**
   * wait_for_stable_page() - wait for writeback to finish, if necessary.
--- 
-2.33.0
-
 
 From 2596e56fd2da93c63afac8fa5027a093cd818751 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3822,7 +3722,6 @@ Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/huge_mm.h | 15 ---------------
  include/linux/pagemap.h |  1 +
@@ -3831,7 +3730,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 21 insertions(+), 25 deletions(-)
 
 diff --git a/include/linux/huge_mm.h b/include/linux/huge_mm.h
-index f123e15d966e..f280f33ff223 100644
+index f123e15d966e84..f280f33ff22373 100644
 --- a/include/linux/huge_mm.h
 +++ b/include/linux/huge_mm.h
 @@ -250,15 +250,6 @@ static inline spinlock_t *pud_trans_huge_lock(pud_t *pud,
@@ -3864,7 +3763,7 @@ index f123e15d966e..f280f33ff223 100644
  {
  	VM_BUG_ON_PGFLAGS(PageTail(page), page);
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 0c5f53368fe9..96b62a2331fb 100644
+index 0c5f53368fe984..96b62a2331fbd7 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -772,6 +772,7 @@ int folio_wait_writeback_killable(struct folio *folio);
@@ -3876,7 +3775,7 @@ index 0c5f53368fe9..96b62a2331fb 100644
  void __set_page_dirty(struct page *, struct address_space *, int warn);
  int __set_page_dirty_nobuffers(struct page *page);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 41275dac7a92..3c83f03b80d7 100644
+index 41275dac7a92a7..3c83f03b80d7f8 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -29,3 +29,9 @@ void wait_on_page_writeback(struct page *page)
@@ -3890,7 +3789,7 @@ index 41275dac7a92..3c83f03b80d7 100644
 +}
 +EXPORT_SYMBOL_GPL(wait_for_stable_page);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index c2c00e1533ad..a078e9786cc4 100644
+index c2c00e1533ad9a..a078e9786cc4ea 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2877,17 +2877,21 @@ int folio_wait_writeback_killable(struct folio *folio)
@@ -3925,9 +3824,6 @@ index c2c00e1533ad..a078e9786cc4 100644
  }
 -EXPORT_SYMBOL_GPL(wait_for_stable_page);
 +EXPORT_SYMBOL_GPL(folio_wait_stable);
--- 
-2.33.0
-
 
 From f4caa66016326f1a7fb9be24c8f7c3ffebe60226 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -3949,7 +3845,6 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 10 +++---
  mm/filemap.c            | 77 +++++++++++++++++++----------------------
@@ -3957,7 +3852,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 43 insertions(+), 48 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 96b62a2331fb..7eb02baf6f9f 100644
+index 96b62a2331fbd7..7eb02baf6f9f91 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -729,11 +729,11 @@ static inline bool lock_page_or_retry(struct page *page, struct mm_struct *mm,
@@ -3993,7 +3888,7 @@ index 96b62a2331fb..7eb02baf6f9f 100644
  
  static inline void wait_on_page_locked(struct page *page)
 diff --git a/mm/filemap.c b/mm/filemap.c
-index e9670b690bc4..93ee8be3c6f5 100644
+index e9670b690bc4a6..93ee8be3c6f56a 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1102,7 +1102,7 @@ static int wake_page_function(wait_queue_entry_t *wait, unsigned mode, int sync,
@@ -4208,7 +4103,7 @@ index e9670b690bc4..93ee8be3c6f5 100644
  }
  EXPORT_SYMBOL_GPL(__folio_lock_killable);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index a078e9786cc4..b34278d05395 100644
+index a078e9786cc4ea..b34278d05395f2 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2846,7 +2846,7 @@ void folio_wait_writeback(struct folio *folio)
@@ -4229,9 +4124,6 @@ index a078e9786cc4..b34278d05395 100644
  			return -EINTR;
  	}
  
--- 
-2.33.0
-
 
 From 34525776fc15b2405aa4f73e4b69282f45ba943c Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -4249,13 +4141,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/filemap.c | 23 ++++++++++++-----------
  1 file changed, 12 insertions(+), 11 deletions(-)
 
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 93ee8be3c6f5..632f6a61e1f3 100644
+index 93ee8be3c6f56a..632f6a61e1f31a 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1121,14 +1121,14 @@ static int wake_page_function(wait_queue_entry_t *wait, unsigned mode, int sync,
@@ -4321,9 +4212,6 @@ index 93ee8be3c6f5..632f6a61e1f3 100644
  }
  EXPORT_SYMBOL(end_page_private_2);
  
--- 
-2.33.0
-
 
 From d9522493bd190ff8f2090d7c88427c5f1624fbf3 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -4341,7 +4229,6 @@ Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  fs/cachefiles/rdwr.c    | 16 ++++++++--------
  include/linux/pagemap.h |  8 ++++----
@@ -4349,7 +4236,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 31 insertions(+), 31 deletions(-)
 
 diff --git a/fs/cachefiles/rdwr.c b/fs/cachefiles/rdwr.c
-index 8ffc40e84a59..fcf4f3b72923 100644
+index 8ffc40e84a5944..fcf4f3b7292335 100644
 --- a/fs/cachefiles/rdwr.c
 +++ b/fs/cachefiles/rdwr.c
 @@ -25,20 +25,20 @@ static int cachefiles_read_waiter(wait_queue_entry_t *wait, unsigned mode,
@@ -4406,7 +4293,7 @@ index 8ffc40e84a59..fcf4f3b72923 100644
  
  		/* but the page may have been read before the monitor was
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 7eb02baf6f9f..c8e74d67b01f 100644
+index 7eb02baf6f9f91..c8e74d67b01fb1 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -629,13 +629,13 @@ static inline pgoff_t linear_page_index(struct vm_area_struct *vma,
@@ -4444,7 +4331,7 @@ index 7eb02baf6f9f..c8e74d67b01f 100644
  /*
   * Fault everything in given userspace address range in.
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 632f6a61e1f3..ff8cfad03fe9 100644
+index 632f6a61e1f31a..ff8cfad03fe9ca 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1019,11 +1019,11 @@ EXPORT_SYMBOL(__page_cache_alloc);
@@ -4561,9 +4448,6 @@ index 632f6a61e1f3..ff8cfad03fe9 100644
  	wait->bit_nr = PG_locked;
  
  	spin_lock_irq(&q->lock);
--- 
-2.33.0
-
 
 From 934aa7a8f5b7cb3b3f1df7ea43fdc5ff1b6af05a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -4584,7 +4468,6 @@ Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/netfs.h   |  6 +++---
  include/linux/pagemap.h |  6 +++---
@@ -4592,7 +4475,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 24 insertions(+), 29 deletions(-)
 
 diff --git a/include/linux/netfs.h b/include/linux/netfs.h
-index 9062adfa2fb9..fad8c6209edd 100644
+index 9062adfa2fb9dc..fad8c6209eddfc 100644
 --- a/include/linux/netfs.h
 +++ b/include/linux/netfs.h
 @@ -55,7 +55,7 @@ static inline void set_page_fscache(struct page *page)
@@ -4623,7 +4506,7 @@ index 9062adfa2fb9..fad8c6209edd 100644
  
  enum netfs_read_source {
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index c8e74d67b01f..edf58a581bce 100644
+index c8e74d67b01fb1..edf58a581bce6c 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -796,9 +796,9 @@ static inline void set_page_private_2(struct page *page)
@@ -4640,7 +4523,7 @@ index c8e74d67b01f..edf58a581bce 100644
  /*
   * Add an arbitrary waiter to a page's wait queue
 diff --git a/mm/filemap.c b/mm/filemap.c
-index ff8cfad03fe9..84066a257bf2 100644
+index ff8cfad03fe9ca..84066a257bf248 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1451,56 +1451,51 @@ void folio_unlock(struct folio *folio)
@@ -4726,9 +4609,6 @@ index ff8cfad03fe9..84066a257bf2 100644
  
  /**
   * folio_end_writeback - End writeback against a folio.
--- 
-2.33.0
-
 
 From bd611ac0d1e081615f09835a8a2c41502cd914bf Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -4750,7 +4630,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/filesystems/netfs_library.rst |  2 +
  include/linux/netfs.h                       | 75 +++++++++++++--------
@@ -4758,7 +4637,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 50 insertions(+), 43 deletions(-)
 
 diff --git a/Documentation/filesystems/netfs_library.rst b/Documentation/filesystems/netfs_library.rst
-index 57a641847818..bb68d39f03b7 100644
+index 57a64184781863..bb68d39f03b789 100644
 --- a/Documentation/filesystems/netfs_library.rst
 +++ b/Documentation/filesystems/netfs_library.rst
 @@ -524,3 +524,5 @@ Note that these methods are passed a pointer to the cache resource structure,
@@ -4768,7 +4647,7 @@ index 57a641847818..bb68d39f03b7 100644
 +
 +.. kernel-doc:: include/linux/netfs.h
 diff --git a/include/linux/netfs.h b/include/linux/netfs.h
-index fad8c6209edd..113b5fa9280c 100644
+index fad8c6209eddfc..113b5fa9280cff 100644
 --- a/include/linux/netfs.h
 +++ b/include/linux/netfs.h
 @@ -22,6 +22,7 @@
@@ -4885,7 +4764,7 @@ index fad8c6209edd..113b5fa9280c 100644
  {
  	return folio_wait_private_2_killable(page_folio(page));
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index edf58a581bce..08f40e004d97 100644
+index edf58a581bce6c..08f40e004d97ef 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -780,22 +780,6 @@ int __set_page_dirty_no_writeback(struct page *page);
@@ -4911,9 +4790,6 @@ index edf58a581bce..08f40e004d97 100644
  void folio_end_private_2(struct folio *folio);
  void folio_wait_private_2(struct folio *folio);
  int folio_wait_private_2_killable(struct folio *folio);
--- 
-2.33.0
-
 
 From d6e90d951cf12d70d2ee8c30f2e93705314caa20 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -4933,7 +4809,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h       |  1 +
  include/linux/mm_types.h |  6 ++++++
@@ -4942,7 +4817,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 29 insertions(+), 13 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 634f60a6f663..41b9fd4427b7 100644
+index 634f60a6f663fb..41b9fd4427b776 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1768,6 +1768,7 @@ static inline pgoff_t page_index(struct page *page)
@@ -4954,7 +4829,7 @@ index 634f60a6f663..41b9fd4427b7 100644
  /*
   * Return true only if the page has been allocated with
 diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
-index f38ab53fcf7c..1066afc9a06d 100644
+index f38ab53fcf7c84..1066afc9a06de7 100644
 --- a/include/linux/mm_types.h
 +++ b/include/linux/mm_types.h
 @@ -291,6 +291,12 @@ FOLIO_MATCH(memcg_data, memcg_data);
@@ -4971,7 +4846,7 @@ index f38ab53fcf7c..1066afc9a06d 100644
  {
  	return &page[1].compound_mapcount;
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 3c83f03b80d7..7044fcc8a8aa 100644
+index 3c83f03b80d7f8..7044fcc8a8aa82 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -35,3 +35,9 @@ void wait_for_stable_page(struct page *page)
@@ -4985,7 +4860,7 @@ index 3c83f03b80d7..7044fcc8a8aa 100644
 +}
 +EXPORT_SYMBOL(page_mapped);
 diff --git a/mm/util.c b/mm/util.c
-index 1cde6218d6d1..d135629dbc8b 100644
+index 1cde6218d6d142..d135629dbc8b7f 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -652,28 +652,31 @@ void *page_rmapping(struct page *page)
@@ -5033,9 +4908,6 @@ index 1cde6218d6d1..d135629dbc8b 100644
  
  struct anon_vma *page_anon_vma(struct page *page)
  {
--- 
-2.33.0
-
 
 From edbd4267be32243ad1a952c9f6d781a928114ce2 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5049,13 +4921,12 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h | 5 +++++
  1 file changed, 5 insertions(+)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 41b9fd4427b7..98f7e013c0e7 100644
+index 41b9fd4427b776..98f7e013c0e7e7 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1428,6 +1428,11 @@ static inline int page_to_nid(const struct page *page)
@@ -5070,9 +4941,6 @@ index 41b9fd4427b7..98f7e013c0e7 100644
  #ifdef CONFIG_NUMA_BALANCING
  static inline int cpu_pid_to_cpupid(int cpu, int pid)
  {
--- 
-2.33.0
-
 
 From a511cf0afa19e807ec8ac1de54f392c9645f8142 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5090,13 +4958,12 @@ Acked-by: Michal Hocko <mhocko@suse.com>
 Acked-by: Johannes Weiner <hannes@cmpxchg.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 11 +++++------
  1 file changed, 5 insertions(+), 6 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 702a81dfe72d..6a775dd7cf40 100644
+index 702a81dfe72dc4..6a775dd7cf4085 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -831,7 +831,6 @@ static unsigned long memcg_events_local(struct mem_cgroup *memcg, int event)
@@ -5146,9 +5013,6 @@ index 702a81dfe72d..6a775dd7cf40 100644
  	memcg_check_events(memcg, page);
  
  	css_put(&memcg->css);
--- 
-2.33.0
-
 
 From c7f27e15bd5768575fb1e99a10c7a9c9745e624b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5165,13 +5029,12 @@ Acked-by: Johannes Weiner <hannes@cmpxchg.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 24 ++++--------------------
  1 file changed, 4 insertions(+), 20 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 6a775dd7cf40..3497795ce82f 100644
+index 6a775dd7cf4085..3497795ce82f2b 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -451,28 +451,12 @@ ino_t page_cgroup_ino(struct page *page)
@@ -5237,9 +5100,6 @@ index 6a775dd7cf40..3497795ce82f 100644
  	}
  }
  
--- 
-2.33.0
-
 
 From 7b32c3b6f3749482b5631bd9f8e0b7fd3f04aee0 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5254,13 +5114,12 @@ Acked-by: Johannes Weiner <hannes@cmpxchg.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 12 +++---------
  1 file changed, 3 insertions(+), 9 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 3497795ce82f..30e5863fa038 100644
+index 3497795ce82f2b..30e5863fa03816 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -451,12 +451,6 @@ ino_t page_cgroup_ino(struct page *page)
@@ -5303,9 +5162,6 @@ index 3497795ce82f..30e5863fa038 100644
  
  	/*
  	 * Do not even bother to check the largest node if the root
--- 
-2.33.0
-
 
 From b6472d0e68806f494c732deef0655bcd6b4dabe5 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5320,13 +5176,12 @@ Acked-by: Michal Hocko <mhocko@suse.com>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 23 ++++++++++++-----------
  1 file changed, 12 insertions(+), 11 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 30e5863fa038..b8a363733afc 100644
+index 30e5863fa03816..b8a363733afc2e 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -851,7 +851,7 @@ static bool mem_cgroup_event_ratelimit(struct mem_cgroup *memcg,
@@ -5426,9 +5281,6 @@ index 30e5863fa038..b8a363733afc 100644
  
  	css_put(&memcg->css);
  }
--- 
-2.33.0
-
 
 From dcf274eff7f06a9bb20f4d4bde5c6c85e57431b7 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5447,14 +5299,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 110 ++++++++++++++++++++++---------------
  mm/memcontrol.c            |  21 ++++---
  2 files changed, 77 insertions(+), 54 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 24797929d8a1..267bea1a03c9 100644
+index 24797929d8a1f1..267bea1a03c9a5 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -371,7 +371,7 @@ enum page_memcg_data_flags {
@@ -5652,7 +5503,7 @@ index 24797929d8a1..267bea1a03c9 100644
  {
  	return false;
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index b8a363733afc..d443d7861b57 100644
+index b8a363733afc2e..d443d7861b57a7 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -3050,15 +3050,16 @@ int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order)
@@ -5723,9 +5574,6 @@ index b8a363733afc..d443d7861b57 100644
  	}
  
  	if (!memcg)
--- 
-2.33.0
-
 
 From 3cf43b1b56a302713fc7d8c7c9d00377232581ee Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5740,13 +5588,12 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Michal Hocko <mhocko@suse.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 27 +++++++++++++--------------
  1 file changed, 13 insertions(+), 14 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index d443d7861b57..5f7cc50ec2eb 100644
+index d443d7861b57a7..5f7cc50ec2eb39 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -2769,9 +2769,9 @@ static void cancel_charge(struct mem_cgroup *memcg, unsigned int nr_pages)
@@ -5835,9 +5682,6 @@ index d443d7861b57..5f7cc50ec2eb 100644
  
  	local_irq_save(flags);
  	mem_cgroup_charge_statistics(memcg, nr_pages);
--- 
-2.33.0
-
 
 From 03200bdbff6d17118603ce5d707bd637fbce1d27 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -5852,7 +5696,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h |  6 +++---
  kernel/events/uprobes.c    |  3 ++-
@@ -5868,7 +5711,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  11 files changed, 34 insertions(+), 31 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 267bea1a03c9..68461be125d9 100644
+index 267bea1a03c9a5..68461be125d997 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -703,7 +703,7 @@ static inline bool mem_cgroup_below_min(struct mem_cgroup *memcg)
@@ -5892,7 +5735,7 @@ index 267bea1a03c9..68461be125d9 100644
  	return 0;
  }
 diff --git a/kernel/events/uprobes.c b/kernel/events/uprobes.c
-index af24dc3febbe..6357c3580d07 100644
+index af24dc3febbef1..6357c3580d07b3 100644
 --- a/kernel/events/uprobes.c
 +++ b/kernel/events/uprobes.c
 @@ -167,7 +167,8 @@ static int __replace_page(struct vm_area_struct *vma, unsigned long addr,
@@ -5906,7 +5749,7 @@ index af24dc3febbe..6357c3580d07 100644
  			return err;
  	}
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 84066a257bf2..65abbef90127 100644
+index 84066a257bf248..65abbef9012765 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -872,7 +872,7 @@ noinline int __add_to_page_cache_locked(struct page *page,
@@ -5919,7 +5762,7 @@ index 84066a257bf2..65abbef90127 100644
  			goto error;
  		charged = true;
 diff --git a/mm/huge_memory.c b/mm/huge_memory.c
-index afff3ac87067..ecb1fb1f5f3e 100644
+index afff3ac8706732..ecb1fb1f5f3e14 100644
 --- a/mm/huge_memory.c
 +++ b/mm/huge_memory.c
 @@ -603,7 +603,7 @@ static vm_fault_t __do_huge_pmd_anonymous_page(struct vm_fault *vmf,
@@ -5932,7 +5775,7 @@ index afff3ac87067..ecb1fb1f5f3e 100644
  		count_vm_event(THP_FAULT_FALLBACK);
  		count_vm_event(THP_FAULT_FALLBACK_CHARGE);
 diff --git a/mm/khugepaged.c b/mm/khugepaged.c
-index b0412be08fa2..8f6d7fdea9f4 100644
+index b0412be08fa2c5..8f6d7fdea9f4bf 100644
 --- a/mm/khugepaged.c
 +++ b/mm/khugepaged.c
 @@ -1087,7 +1087,7 @@ static void collapse_huge_page(struct mm_struct *mm,
@@ -5954,7 +5797,7 @@ index b0412be08fa2..8f6d7fdea9f4 100644
  		goto out;
  	}
 diff --git a/mm/ksm.c b/mm/ksm.c
-index 3fa9bc8a67cf..23d36b59f997 100644
+index 3fa9bc8a67cf63..23d36b59f9975f 100644
 --- a/mm/ksm.c
 +++ b/mm/ksm.c
 @@ -2580,7 +2580,8 @@ struct page *ksm_might_need_to_copy(struct page *page,
@@ -5968,7 +5811,7 @@ index 3fa9bc8a67cf..23d36b59f997 100644
  		new_page = NULL;
  	}
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 5f7cc50ec2eb..878c6d1e6838 100644
+index 5f7cc50ec2eb39..878c6d1e68382d 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -6684,10 +6684,9 @@ void mem_cgroup_calculate_protection(struct mem_cgroup *root,
@@ -6049,7 +5892,7 @@ index 5f7cc50ec2eb..878c6d1e6838 100644
  	css_put(&memcg->css);
  	return ret;
 diff --git a/mm/memory.c b/mm/memory.c
-index 36dbf5b1555d..b477acf4595f 100644
+index 36dbf5b1555db9..b477acf4595fc6 100644
 --- a/mm/memory.c
 +++ b/mm/memory.c
 @@ -990,7 +990,7 @@ page_copy_prealloc(struct mm_struct *src_mm, struct vm_area_struct *vma,
@@ -6090,7 +5933,7 @@ index 36dbf5b1555d..b477acf4595f 100644
  		return VM_FAULT_OOM;
  	}
 diff --git a/mm/migrate.c b/mm/migrate.c
-index 7e240437e7d9..24b8fc4e9952 100644
+index 7e240437e7d9a8..24b8fc4e9952d4 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -2763,7 +2763,7 @@ static void migrate_vma_insert_page(struct migrate_vma *migrate,
@@ -6103,7 +5946,7 @@ index 7e240437e7d9..24b8fc4e9952 100644
  
  	/*
 diff --git a/mm/shmem.c b/mm/shmem.c
-index dacda7463d54..395039542cc7 100644
+index dacda7463d549d..395039542cc74c 100644
 --- a/mm/shmem.c
 +++ b/mm/shmem.c
 @@ -685,7 +685,7 @@ static int shmem_add_to_page_cache(struct page *page,
@@ -6116,7 +5959,7 @@ index dacda7463d54..395039542cc7 100644
  			if (PageTransHuge(page)) {
  				count_vm_event(THP_FILE_FALLBACK);
 diff --git a/mm/userfaultfd.c b/mm/userfaultfd.c
-index 0e2132834bc7..5d0f55f3c0ed 100644
+index 0e2132834bc7d6..5d0f55f3c0eded 100644
 --- a/mm/userfaultfd.c
 +++ b/mm/userfaultfd.c
 @@ -164,7 +164,7 @@ static int mcopy_atomic_pte(struct mm_struct *dst_mm,
@@ -6128,9 +5971,6 @@ index 0e2132834bc7..5d0f55f3c0ed 100644
  		goto out_release;
  
  	ret = mfill_atomic_install_pte(dst_mm, dst_pmd, dst_vma, dst_addr,
--- 
-2.33.0
-
 
 From 69fa89163d2051756c47672e9a117d5e16fb64eb Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6144,13 +5984,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 31 +++++++++++++++----------------
  1 file changed, 15 insertions(+), 16 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 878c6d1e6838..b8b67f0a0555 100644
+index 878c6d1e68382d..b8b67f0a0555e3 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -6835,24 +6835,23 @@ static void uncharge_batch(const struct uncharge_gather *ug)
@@ -6244,9 +6083,6 @@ index 878c6d1e6838..b8b67f0a0555 100644
  	if (ug.memcg)
  		uncharge_batch(&ug);
  }
--- 
-2.33.0
-
 
 From 0b291fbce4467033fc97dfcdf038f0aedb3cfa76 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6262,7 +6098,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h |  4 ++--
  mm/filemap.c               |  2 +-
@@ -6275,7 +6110,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  8 files changed, 16 insertions(+), 16 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 68461be125d9..e965776a34c6 100644
+index 68461be125d997..e965776a34c660 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -708,7 +708,7 @@ int mem_cgroup_swapin_charge_page(struct page *page, struct mm_struct *mm,
@@ -6297,7 +6132,7 @@ index 68461be125d9..e965776a34c6 100644
  }
  
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 65abbef90127..1d8cf186c0e1 100644
+index 65abbef9012765..1d8cf186c0e13a 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -923,7 +923,7 @@ noinline int __add_to_page_cache_locked(struct page *page,
@@ -6310,7 +6145,7 @@ index 65abbef90127..1d8cf186c0e1 100644
  	}
  
 diff --git a/mm/khugepaged.c b/mm/khugepaged.c
-index 8f6d7fdea9f4..6b9c98ddcd09 100644
+index 8f6d7fdea9f4bf..6b9c98ddcd09ff 100644
 --- a/mm/khugepaged.c
 +++ b/mm/khugepaged.c
 @@ -1211,7 +1211,7 @@ static void collapse_huge_page(struct mm_struct *mm,
@@ -6332,7 +6167,7 @@ index 8f6d7fdea9f4..6b9c98ddcd09 100644
  }
  
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index b8b67f0a0555..70e527c760ee 100644
+index b8b67f0a0555e3..70e527c760ee4f 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -6900,24 +6900,24 @@ static void uncharge_folio(struct folio *folio, struct uncharge_gather *ug)
@@ -6368,7 +6203,7 @@ index b8b67f0a0555..70e527c760ee 100644
  }
  
 diff --git a/mm/memory-failure.c b/mm/memory-failure.c
-index 470400cc7513..b8e05687098e 100644
+index 470400cc751363..b8e05687098eba 100644
 --- a/mm/memory-failure.c
 +++ b/mm/memory-failure.c
 @@ -763,7 +763,7 @@ static int delete_from_lru_cache(struct page *p)
@@ -6381,7 +6216,7 @@ index 470400cc7513..b8e05687098e 100644
  		/*
  		 * drop the page count elevated by isolate_lru_page()
 diff --git a/mm/memremap.c b/mm/memremap.c
-index 15a074ffb8d7..6eac40f9f62a 100644
+index 15a074ffb8d73d..6eac40f9f62a76 100644
 --- a/mm/memremap.c
 +++ b/mm/memremap.c
 @@ -508,7 +508,7 @@ void free_devmap_managed_page(struct page *page)
@@ -6394,7 +6229,7 @@ index 15a074ffb8d7..6eac40f9f62a 100644
  	/*
  	 * When a device_private page is freed, the page->mapping field
 diff --git a/mm/page_alloc.c b/mm/page_alloc.c
-index eeb3a9cb36bb..c0295294cda9 100644
+index eeb3a9cb36bb4f..c0295294cda966 100644
 --- a/mm/page_alloc.c
 +++ b/mm/page_alloc.c
 @@ -726,7 +726,7 @@ static inline void free_the_page(struct page *page, unsigned int order)
@@ -6407,7 +6242,7 @@ index eeb3a9cb36bb..c0295294cda9 100644
  }
  
 diff --git a/mm/swap.c b/mm/swap.c
-index 095a5ec6f986..11ff40104a2c 100644
+index 095a5ec6f986c1..11ff40104a2cd3 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -94,7 +94,7 @@ static void __page_cache_release(struct page *page)
@@ -6419,9 +6254,6 @@ index 095a5ec6f986..11ff40104a2c 100644
  	free_unref_page(page, 0);
  }
  
--- 
-2.33.0
-
 
 From 9a308e64c87929ee020749d15d6d3482b9c5bece Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6436,7 +6268,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h |  4 ++--
  mm/filemap.c               |  4 +++-
@@ -6446,7 +6277,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  5 files changed, 29 insertions(+), 23 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index e965776a34c6..b8dd8fc5e237 100644
+index e965776a34c660..b8dd8fc5e237ad 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -711,7 +711,7 @@ void mem_cgroup_swapin_uncharge_swap(swp_entry_t entry);
@@ -6468,7 +6299,7 @@ index e965776a34c6..b8dd8fc5e237 100644
  }
  
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 1d8cf186c0e1..4bf66a17ce1f 100644
+index 1d8cf186c0e13a..4bf66a17ce1fa5 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -817,6 +817,8 @@ EXPORT_SYMBOL(file_write_and_wait_range);
@@ -6490,7 +6321,7 @@ index 1d8cf186c0e1..4bf66a17ce1f 100644
  	xas_lock_irqsave(&xas, flags);
  	xas_store(&xas, new);
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 70e527c760ee..057459572125 100644
+index 70e527c760ee4f..05745957212542 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -6944,36 +6944,35 @@ void mem_cgroup_uncharge_list(struct list_head *page_list)
@@ -6560,7 +6391,7 @@ index 70e527c760ee..057459572125 100644
  }
  
 diff --git a/mm/migrate.c b/mm/migrate.c
-index 24b8fc4e9952..7cffbc716d8f 100644
+index 24b8fc4e9952d4..7cffbc716d8fa9 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -541,6 +541,8 @@ int migrate_huge_page_move_mapping(struct address_space *mapping,
@@ -6582,7 +6413,7 @@ index 24b8fc4e9952..7cffbc716d8f 100644
  EXPORT_SYMBOL(migrate_page_states);
  
 diff --git a/mm/shmem.c b/mm/shmem.c
-index 395039542cc7..17cadf290c47 100644
+index 395039542cc74c..17cadf290c47a6 100644
 --- a/mm/shmem.c
 +++ b/mm/shmem.c
 @@ -1619,6 +1619,7 @@ static int shmem_replace_page(struct page **pagep, gfp_t gfp,
@@ -6604,9 +6435,6 @@ index 395039542cc7..17cadf290c47 100644
  		__inc_lruvec_page_state(newpage, NR_FILE_PAGES);
  		__dec_lruvec_page_state(oldpage, NR_FILE_PAGES);
  	}
--- 
-2.33.0
-
 
 From 2d3b55b0667ac5f03de0a4991e6d0f27b4cb102b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6623,7 +6451,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h       | 7 ++++---
  include/trace/events/writeback.h | 8 ++++----
@@ -6631,7 +6458,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 11 insertions(+), 10 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index b8dd8fc5e237..d37947264be0 100644
+index b8dd8fc5e237ad..d37947264be003 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -1560,17 +1560,18 @@ void mem_cgroup_wb_stats(struct bdi_writeback *wb, unsigned long *pfilepages,
@@ -6657,7 +6484,7 @@ index b8dd8fc5e237..d37947264be0 100644
  
  void mem_cgroup_flush_foreign(struct bdi_writeback *wb);
 diff --git a/include/trace/events/writeback.h b/include/trace/events/writeback.h
-index 840d1ba84cf5..297871ca0004 100644
+index 840d1ba84cf5cc..297871ca000475 100644
 --- a/include/trace/events/writeback.h
 +++ b/include/trace/events/writeback.h
 @@ -236,9 +236,9 @@ TRACE_EVENT(inode_switch_wbs,
@@ -6691,7 +6518,7 @@ index 840d1ba84cf5..297871ca0004 100644
  
  	TP_printk("bdi %s[%llu]: ino=%lu memcg_id=%u cgroup_ino=%lu page_cgroup_ino=%lu",
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 057459572125..e12949c27fca 100644
+index 05745957212542..e12949c27fca2a 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -4574,17 +4574,17 @@ void mem_cgroup_wb_stats(struct bdi_writeback *wb, unsigned long *pfilepages,
@@ -6715,9 +6542,6 @@ index 057459572125..e12949c27fca 100644
  
  	/*
  	 * Pick the slot to use.  If there is already a slot for @wb, keep
--- 
-2.33.0
-
 
 From 15df8a1744b3ba5029a14dd2214a9b9bd5b0a475 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6738,14 +6562,13 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 10 +++++++++
  mm/memcontrol.c            | 45 ++++++++++++++++++++++++--------------
  2 files changed, 39 insertions(+), 16 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index d37947264be0..18ab9402c20c 100644
+index d37947264be003..18ab9402c20cea 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -949,6 +949,8 @@ void mem_cgroup_print_oom_group(struct mem_cgroup *memcg);
@@ -6773,7 +6596,7 @@ index d37947264be0..18ab9402c20c 100644
  {
  }
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index e12949c27fca..ca3219465f27 100644
+index e12949c27fca2a..ca3219465f277e 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -1965,18 +1965,17 @@ void mem_cgroup_print_oom_group(struct mem_cgroup *memcg)
@@ -6873,9 +6696,6 @@ index e12949c27fca..ca3219465f27 100644
  
  	ret = 0;
  	nid = page_to_nid(page);
--- 
-2.33.0
-
 
 From 52f4f2a28c2025a82eb49c3f0ae207e8e1d26c9f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -6890,13 +6710,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/memcontrol.c | 37 +++++++++++++++++++------------------
  1 file changed, 19 insertions(+), 18 deletions(-)
 
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index ca3219465f27..9b3f9a08da03 100644
+index ca3219465f277e..9b3f9a08da0332 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -5593,38 +5593,39 @@ static int mem_cgroup_move_account(struct page *page,
@@ -7005,9 +6824,6 @@ index ca3219465f27..9b3f9a08da03 100644
  out:
  	return ret;
  }
--- 
-2.33.0
-
 
 From 4c843009e8a2d5cdf60a4dcad0349eee35db6f79 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7021,7 +6837,6 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 20 +++++++++-----------
  mm/compaction.c            |  2 +-
@@ -7031,7 +6846,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  5 files changed, 20 insertions(+), 17 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 18ab9402c20c..63e1dc8b02a6 100644
+index 18ab9402c20cea..63e1dc8b02a65e 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -750,18 +750,17 @@ static inline struct lruvec *mem_cgroup_lruvec(struct mem_cgroup *memcg,
@@ -7074,7 +6889,7 @@ index 18ab9402c20c..63e1dc8b02a6 100644
  }
  
 diff --git a/mm/compaction.c b/mm/compaction.c
-index 621508e0ecd5..a88f7b893f80 100644
+index 621508e0ecd5da..a88f7b893f80a2 100644
 --- a/mm/compaction.c
 +++ b/mm/compaction.c
 @@ -1028,7 +1028,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
@@ -7087,7 +6902,7 @@ index 621508e0ecd5..a88f7b893f80 100644
  		/* If we already hold the lock, we can skip some rechecking */
  		if (lruvec != locked) {
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 9b3f9a08da03..760ef3950eee 100644
+index 9b3f9a08da0332..760ef3950eee56 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -1186,9 +1186,10 @@ void lruvec_memcg_debug(struct lruvec *lruvec, struct page *page)
@@ -7127,7 +6942,7 @@ index 9b3f9a08da03..760ef3950eee 100644
  
  	lruvec_memcg_debug(lruvec, page);
 diff --git a/mm/swap.c b/mm/swap.c
-index 11ff40104a2c..4ba77fc8da4f 100644
+index 11ff40104a2cd3..4ba77fc8da4f85 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -315,7 +315,8 @@ void lru_note_cost(struct lruvec *lruvec, bool file, unsigned int nr_pages)
@@ -7141,7 +6956,7 @@ index 11ff40104a2c..4ba77fc8da4f 100644
  }
  
 diff --git a/mm/workingset.c b/mm/workingset.c
-index 5ba3e42446fa..e62c0f2084a2 100644
+index 5ba3e42446fa60..e62c0f2084a261 100644
 --- a/mm/workingset.c
 +++ b/mm/workingset.c
 @@ -396,6 +396,7 @@ void workingset_refault(struct page *page, void *shadow)
@@ -7161,9 +6976,6 @@ index 5ba3e42446fa..e62c0f2084a2 100644
  	workingset_age_nonresident(lruvec, thp_nr_pages(page));
  out:
  	rcu_read_unlock();
--- 
-2.33.0
-
 
 From 9c2ca2d7b427f19301cac074eb2d40616c0f5973 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7177,7 +6989,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 32 +++++++++-------
  mm/compaction.c            |  2 +-
@@ -7189,7 +7000,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  7 files changed, 79 insertions(+), 50 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 63e1dc8b02a6..99350d84c670 100644
+index 63e1dc8b02a65e..99350d84c6709c 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -767,15 +767,16 @@ struct mem_cgroup *mem_cgroup_from_task(struct task_struct *p);
@@ -7291,7 +7102,7 @@ index 63e1dc8b02a6..99350d84c670 100644
  
  #ifdef CONFIG_CGROUP_WRITEBACK
 diff --git a/mm/compaction.c b/mm/compaction.c
-index a88f7b893f80..6f77577be248 100644
+index a88f7b893f80a2..6f77577be24837 100644
 --- a/mm/compaction.c
 +++ b/mm/compaction.c
 @@ -1038,7 +1038,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
@@ -7304,7 +7115,7 @@ index a88f7b893f80..6f77577be248 100644
  			/* Try get exclusive access under lock */
  			if (!skip_updated) {
 diff --git a/mm/huge_memory.c b/mm/huge_memory.c
-index ecb1fb1f5f3e..763bf687ca92 100644
+index ecb1fb1f5f3e14..763bf687ca92a3 100644
 --- a/mm/huge_memory.c
 +++ b/mm/huge_memory.c
 @@ -2431,7 +2431,8 @@ static void __split_huge_page_tail(struct page *head, int tail,
@@ -7327,7 +7138,7 @@ index ecb1fb1f5f3e..763bf687ca92 100644
  	for (i = nr - 1; i >= 1; i--) {
  		__split_huge_page_tail(head, i, lruvec, list);
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index 760ef3950eee..9a0e367daa5d 100644
+index 760ef3950eee56..9a0e367daa5d86 100644
 --- a/mm/memcontrol.c
 +++ b/mm/memcontrol.c
 @@ -1158,67 +1158,88 @@ int mem_cgroup_scan_tasks(struct mem_cgroup *memcg,
@@ -7448,7 +7259,7 @@ index 760ef3950eee..9a0e367daa5d 100644
  	return lruvec;
  }
 diff --git a/mm/rmap.c b/mm/rmap.c
-index b9eb5c12f3fe..1df8683c4c4c 100644
+index b9eb5c12f3fe10..1df8683c4c4ccb 100644
 --- a/mm/rmap.c
 +++ b/mm/rmap.c
 @@ -33,7 +33,7 @@
@@ -7461,7 +7272,7 @@ index b9eb5c12f3fe..1df8683c4c4c 100644
   *                 bdi.wb->list_lock (in set_page_dirty's __mark_inode_dirty)
   *                   sb_lock (within inode_lock in fs/fs-writeback.c)
 diff --git a/mm/swap.c b/mm/swap.c
-index 4ba77fc8da4f..6d0d2bfca48e 100644
+index 4ba77fc8da4f85..6d0d2bfca48e96 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -80,10 +80,11 @@ static DEFINE_PER_CPU(struct lru_pvecs, lru_pvecs) = {
@@ -7493,7 +7304,7 @@ index 4ba77fc8da4f..6d0d2bfca48e 100644
  		unlock_page_lruvec_irq(lruvec);
  		SetPageLRU(page);
 diff --git a/mm/vmscan.c b/mm/vmscan.c
-index eeae2f6bc532..2b40e906a0f8 100644
+index eeae2f6bc53203..2b40e906a0f807 100644
 --- a/mm/vmscan.c
 +++ b/mm/vmscan.c
 @@ -1968,6 +1968,7 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
@@ -7513,9 +7324,6 @@ index eeae2f6bc532..2b40e906a0f8 100644
  		del_page_from_lru_list(page, lruvec);
  		unlock_page_lruvec_irq(lruvec);
  		ret = 0;
--- 
-2.33.0
-
 
 From 12a4b12859f4ae342a461248ae21a66ff7a8d052 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7531,7 +7339,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 17 ++++++++---------
  mm/mlock.c                 |  3 ++-
@@ -7540,7 +7347,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 21 insertions(+), 17 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 99350d84c670..6b7ded22fc13 100644
+index 99350d84c6709c..6b7ded22fc1358 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -1529,19 +1529,19 @@ static inline void unlock_page_lruvec_irqrestore(struct lruvec *lruvec,
@@ -7585,7 +7392,7 @@ index 99350d84c670..6b7ded22fc13 100644
  
  		unlock_page_lruvec_irqrestore(locked_lruvec, *flags);
 diff --git a/mm/mlock.c b/mm/mlock.c
-index 16d2ee160d43..e263d62ae2d0 100644
+index 16d2ee160d43c5..e263d62ae2d09b 100644
 --- a/mm/mlock.c
 +++ b/mm/mlock.c
 @@ -271,6 +271,7 @@ static void __munlock_pagevec(struct pagevec *pvec, struct zone *zone)
@@ -7606,7 +7413,7 @@ index 16d2ee160d43..e263d62ae2d0 100644
  				continue;
  			} else
 diff --git a/mm/swap.c b/mm/swap.c
-index 6d0d2bfca48e..83ffb9a03ce1 100644
+index 6d0d2bfca48e96..83ffb9a03ce198 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -211,12 +211,13 @@ static void pagevec_lru_move_fn(struct pagevec *pvec,
@@ -7668,7 +7475,7 @@ index 6d0d2bfca48e..83ffb9a03ce1 100644
  	}
  	if (lruvec)
 diff --git a/mm/vmscan.c b/mm/vmscan.c
-index 2b40e906a0f8..1ac83ad319df 100644
+index 2b40e906a0f807..1ac83ad319df92 100644
 --- a/mm/vmscan.c
 +++ b/mm/vmscan.c
 @@ -2078,7 +2078,7 @@ static unsigned int move_pages_to_lru(struct lruvec *lruvec,
@@ -7697,9 +7504,6 @@ index 2b40e906a0f8..1ac83ad319df 100644
  		if (page_evictable(page) && PageUnevictable(page)) {
  			del_page_from_lru_list(page, lruvec);
  			ClearPageUnevictable(page);
--- 
-2.33.0
-
 
 From 91c1024503ad347b6f5d8488046188b04195baf2 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7716,7 +7520,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h | 22 ++++++++++++----------
  include/linux/swap.h       |  2 +-
@@ -7725,7 +7528,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 18 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 6b7ded22fc13..ecf756add326 100644
+index 6b7ded22fc1358..ecf756add3261a 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -459,20 +459,22 @@ static inline struct mem_cgroup *page_memcg(struct page *page)
@@ -7770,7 +7573,7 @@ index 6b7ded22fc13..ecf756add326 100644
  	WARN_ON_ONCE(!rcu_read_lock_held());
  	return NULL;
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index 8394716a002b..989d8f78c256 100644
+index 8394716a002b5f..989d8f78c256ad 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -330,7 +330,7 @@ static inline swp_entry_t folio_swap_entry(struct folio *folio)
@@ -7783,7 +7586,7 @@ index 8394716a002b..989d8f78c256 100644
  /* Only track the nodes of mappings with shadow entries */
  void workingset_update_node(struct xa_node *node);
 diff --git a/mm/swap.c b/mm/swap.c
-index 83ffb9a03ce1..176adb12ce84 100644
+index 83ffb9a03ce198..176adb12ce8443 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -451,7 +451,7 @@ void mark_page_accessed(struct page *page)
@@ -7796,7 +7599,7 @@ index 83ffb9a03ce1..176adb12ce84 100644
  	if (page_is_idle(page))
  		clear_page_idle(page);
 diff --git a/mm/workingset.c b/mm/workingset.c
-index e62c0f2084a2..39bb60d50217 100644
+index e62c0f2084a261..39bb60d5021732 100644
 --- a/mm/workingset.c
 +++ b/mm/workingset.c
 @@ -392,13 +392,11 @@ void workingset_refault(struct page *page, void *shadow)
@@ -7829,9 +7632,6 @@ index e62c0f2084a2..39bb60d50217 100644
  out:
  	rcu_read_unlock();
  }
--- 
-2.33.0
-
 
 From 60024664467f541e1a01ca76fc2bf2012b2ee42b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7844,13 +7644,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Acked-by: Mike Rapoport <rppt@linux.ibm.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h | 14 ++++++++++++++
  1 file changed, 14 insertions(+)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 98f7e013c0e7..69c1e88a7da9 100644
+index 98f7e013c0e7e7..69c1e88a7da97c 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1623,6 +1623,20 @@ static inline unsigned long page_to_section(const struct page *page)
@@ -7874,9 +7673,6 @@ index 98f7e013c0e7..69c1e88a7da9 100644
  /* MIGRATE_CMA and ZONE_MOVABLE do not allow pin pages */
  #ifdef CONFIG_MIGRATION
  static inline bool is_pinnable_page(struct page *page)
--- 
-2.33.0
-
 
 From 50bf314523e71ea3f0908cd6c4009c71be840b97 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7892,14 +7688,13 @@ it's more efficient to do the subtraction than the mask.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/internal.h |  7 +++++++
  mm/util.c     | 20 ++++----------------
  2 files changed, 11 insertions(+), 16 deletions(-)
 
 diff --git a/mm/internal.h b/mm/internal.h
-index 1a8851b73031..fa31a7f0ed79 100644
+index 1a8851b7303101..fa31a7f0ed798f 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
 @@ -34,6 +34,13 @@
@@ -7917,7 +7712,7 @@ index 1a8851b73031..fa31a7f0ed79 100644
  void folio_rotate_reclaimable(struct folio *folio);
  
 diff --git a/mm/util.c b/mm/util.c
-index d135629dbc8b..ec1f3cb827a8 100644
+index d135629dbc8b7f..ec1f3cb827a82d 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -635,21 +635,10 @@ void kvfree_sensitive(const void *addr, size_t len)
@@ -7960,9 +7755,6 @@ index d135629dbc8b..ec1f3cb827a8 100644
  }
  
  /**
--- 
-2.33.0
-
 
 From d2667a0e3811fbf508a004c4ab092ba998417319 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -7975,7 +7767,6 @@ implement their own version of it.
 
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  Documentation/core-api/cachetlb.rst  |  6 ++++++
  arch/arc/include/asm/cacheflush.h    |  1 +
@@ -7991,7 +7782,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  11 files changed, 36 insertions(+), 4 deletions(-)
 
 diff --git a/Documentation/core-api/cachetlb.rst b/Documentation/core-api/cachetlb.rst
-index fe4290e26729..29682f69a915 100644
+index fe4290e2672969..29682f69a91524 100644
 --- a/Documentation/core-api/cachetlb.rst
 +++ b/Documentation/core-api/cachetlb.rst
 @@ -325,6 +325,12 @@ maps this page at its virtual address.
@@ -8008,7 +7799,7 @@ index fe4290e26729..29682f69a915 100644
    unsigned long user_vaddr, void *dst, void *src, int len)``
    ``void copy_from_user_page(struct vm_area_struct *vma, struct page *page,
 diff --git a/arch/arc/include/asm/cacheflush.h b/arch/arc/include/asm/cacheflush.h
-index e201b4b1655a..e8c2c7469e10 100644
+index e201b4b1655afe..e8c2c7469e107f 100644
 --- a/arch/arc/include/asm/cacheflush.h
 +++ b/arch/arc/include/asm/cacheflush.h
 @@ -36,6 +36,7 @@ void __flush_dcache_page(phys_addr_t paddr, unsigned long vaddr);
@@ -8020,7 +7811,7 @@ index e201b4b1655a..e8c2c7469e10 100644
  void dma_cache_wback_inv(phys_addr_t start, unsigned long sz);
  void dma_cache_inv(phys_addr_t start, unsigned long sz);
 diff --git a/arch/arm/include/asm/cacheflush.h b/arch/arm/include/asm/cacheflush.h
-index 2e24e765e6d3..23bf823376e1 100644
+index 2e24e765e6d3af..23bf823376e198 100644
 --- a/arch/arm/include/asm/cacheflush.h
 +++ b/arch/arm/include/asm/cacheflush.h
 @@ -290,6 +290,7 @@ extern void flush_cache_page(struct vm_area_struct *vma, unsigned long user_addr
@@ -8032,7 +7823,7 @@ index 2e24e765e6d3..23bf823376e1 100644
  static inline void flush_kernel_vmap_range(void *addr, int size)
  {
 diff --git a/arch/mips/include/asm/cacheflush.h b/arch/mips/include/asm/cacheflush.h
-index d687b40b9fbb..c1a43a40f22f 100644
+index d687b40b9fbbff..c1a43a40f22fc3 100644
 --- a/arch/mips/include/asm/cacheflush.h
 +++ b/arch/mips/include/asm/cacheflush.h
 @@ -61,6 +61,8 @@ static inline void flush_dcache_page(struct page *page)
@@ -8045,7 +7836,7 @@ index d687b40b9fbb..c1a43a40f22f 100644
  #define flush_dcache_mmap_unlock(mapping)	do { } while (0)
  
 diff --git a/arch/nds32/include/asm/cacheflush.h b/arch/nds32/include/asm/cacheflush.h
-index 7d6824f7c0e8..b5037981f023 100644
+index 7d6824f7c0e8d8..b5037981f023b4 100644
 --- a/arch/nds32/include/asm/cacheflush.h
 +++ b/arch/nds32/include/asm/cacheflush.h
 @@ -27,6 +27,7 @@ void flush_cache_vunmap(unsigned long start, unsigned long end);
@@ -8057,7 +7848,7 @@ index 7d6824f7c0e8..b5037981f023 100644
  		       unsigned long vaddr, void *dst, void *src, int len);
  void copy_from_user_page(struct vm_area_struct *vma, struct page *page,
 diff --git a/arch/nios2/include/asm/cacheflush.h b/arch/nios2/include/asm/cacheflush.h
-index 18eb9f69f806..1999561b22aa 100644
+index 18eb9f69f8063b..1999561b22aa50 100644
 --- a/arch/nios2/include/asm/cacheflush.h
 +++ b/arch/nios2/include/asm/cacheflush.h
 @@ -28,7 +28,8 @@ extern void flush_cache_range(struct vm_area_struct *vma, unsigned long start,
@@ -8071,7 +7862,7 @@ index 18eb9f69f806..1999561b22aa 100644
  extern void flush_icache_range(unsigned long start, unsigned long end);
  extern void flush_icache_page(struct vm_area_struct *vma, struct page *page);
 diff --git a/arch/parisc/include/asm/cacheflush.h b/arch/parisc/include/asm/cacheflush.h
-index 99663fc1f997..024a0accd94b 100644
+index 99663fc1f997fc..024a0accd94b18 100644
 --- a/arch/parisc/include/asm/cacheflush.h
 +++ b/arch/parisc/include/asm/cacheflush.h
 @@ -53,7 +53,8 @@ void invalidate_kernel_vmap_range(void *vaddr, int size);
@@ -8085,7 +7876,7 @@ index 99663fc1f997..024a0accd94b 100644
  #define flush_dcache_mmap_lock(mapping)		xa_lock_irq(&mapping->i_pages)
  #define flush_dcache_mmap_unlock(mapping)	xa_unlock_irq(&mapping->i_pages)
 diff --git a/arch/sh/include/asm/cacheflush.h b/arch/sh/include/asm/cacheflush.h
-index 4486a865ff62..8d19258cc97f 100644
+index 4486a865ff62f6..8d19258cc97fa9 100644
 --- a/arch/sh/include/asm/cacheflush.h
 +++ b/arch/sh/include/asm/cacheflush.h
 @@ -42,7 +42,8 @@ extern void flush_cache_page(struct vm_area_struct *vma,
@@ -8099,7 +7890,7 @@ index 4486a865ff62..8d19258cc97f 100644
  #define flush_icache_user_range flush_icache_range
  extern void flush_icache_page(struct vm_area_struct *vma,
 diff --git a/arch/xtensa/include/asm/cacheflush.h b/arch/xtensa/include/asm/cacheflush.h
-index cf907e5bf2f2..2d321261a58d 100644
+index cf907e5bf2f250..2d321261a58dac 100644
 --- a/arch/xtensa/include/asm/cacheflush.h
 +++ b/arch/xtensa/include/asm/cacheflush.h
 @@ -120,7 +120,8 @@ void flush_cache_page(struct vm_area_struct*,
@@ -8113,7 +7904,7 @@ index cf907e5bf2f2..2d321261a58d 100644
  void local_flush_cache_range(struct vm_area_struct *vma,
  		unsigned long start, unsigned long end);
 diff --git a/include/asm-generic/cacheflush.h b/include/asm-generic/cacheflush.h
-index 4a674db4e1fa..fedc0dfa4877 100644
+index 4a674db4e1fa5e..fedc0dfa4877c7 100644
 --- a/include/asm-generic/cacheflush.h
 +++ b/include/asm-generic/cacheflush.h
 @@ -49,9 +49,15 @@ static inline void flush_cache_page(struct vm_area_struct *vma,
@@ -8133,7 +7924,7 @@ index 4a674db4e1fa..fedc0dfa4877 100644
  #ifndef flush_dcache_mmap_lock
  static inline void flush_dcache_mmap_lock(struct address_space *mapping)
 diff --git a/mm/util.c b/mm/util.c
-index ec1f3cb827a8..d020c077a44c 100644
+index ec1f3cb827a82d..d020c077a44c40 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -1057,3 +1057,14 @@ void page_offline_end(void)
@@ -8151,9 +7942,6 @@ index ec1f3cb827a8..d020c077a44c 100644
 +}
 +EXPORT_SYMBOL(flush_dcache_folio);
 +#endif
--- 
-2.33.0
-
 
 From b6c818ec119fb65c929aba15c10774667fb9f37a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8166,14 +7954,13 @@ to access up to the next page boundary.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/highmem-internal.h | 11 ++++++++++
  include/linux/highmem.h          | 37 ++++++++++++++++++++++++++++++++
  2 files changed, 48 insertions(+)
 
 diff --git a/include/linux/highmem-internal.h b/include/linux/highmem-internal.h
-index 7902c7d8b55f..d5d6f930ae1d 100644
+index 7902c7d8b55f9b..d5d6f930ae1dd8 100644
 --- a/include/linux/highmem-internal.h
 +++ b/include/linux/highmem-internal.h
 @@ -73,6 +73,12 @@ static inline void *kmap_local_page(struct page *page)
@@ -8202,7 +7989,7 @@ index 7902c7d8b55f..d5d6f930ae1d 100644
  {
  	return kmap_local_page(page);
 diff --git a/include/linux/highmem.h b/include/linux/highmem.h
-index d9a606a9fc64..5915e985584a 100644
+index d9a606a9fc64ae..5915e985584abb 100644
 --- a/include/linux/highmem.h
 +++ b/include/linux/highmem.h
 @@ -96,6 +96,43 @@ static inline void kmap_flush_unused(void);
@@ -8249,9 +8036,6 @@ index d9a606a9fc64..5915e985584a 100644
  /**
   * kmap_atomic - Atomically map a page for temporary usage - Deprecated!
   * @page:	Pointer to the page to be mapped
--- 
-2.33.0
-
 
 From e9f2fb280f005825c074faf5728f24e31d374333 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8267,14 +8051,13 @@ from gfp.h to mm.h.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/gfp.h |  6 ------
  include/linux/mm.h  | 23 +++++++++++++++++++++++
  2 files changed, 23 insertions(+), 6 deletions(-)
 
 diff --git a/include/linux/gfp.h b/include/linux/gfp.h
-index 55b2ec1f965a..dc5ff40608ce 100644
+index 55b2ec1f965a50..dc5ff40608ce90 100644
 --- a/include/linux/gfp.h
 +++ b/include/linux/gfp.h
 @@ -520,12 +520,6 @@ static inline void arch_free_page(struct page *page, int order) { }
@@ -8291,7 +8074,7 @@ index 55b2ec1f965a..dc5ff40608ce 100644
  struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
  		nodemask_t *nodemask);
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 69c1e88a7da9..9a670af47ca7 100644
+index 69c1e88a7da97c..9a670af47ca789 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -1733,6 +1733,29 @@ static inline size_t folio_size(struct folio *folio)
@@ -8324,9 +8107,6 @@ index 69c1e88a7da9..9a670af47ca7 100644
  /*
   * Some inline functions in vmstat.h depend on page_zone()
   */
--- 
-2.33.0
-
 
 From a1c1af5467d80f22aefb0d4198cca8d60d03c35a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8342,13 +8122,12 @@ Acked-by: Vlastimil Babka <vbabka@suse.cz>
 Reviewed-by: William Kucharski <william.kucharski@oracle.com>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/page_idle.h | 99 +++++++++++++++++++--------------------
  1 file changed, 49 insertions(+), 50 deletions(-)
 
 diff --git a/include/linux/page_idle.h b/include/linux/page_idle.h
-index 1e894d34bdce..1bcb1365b1d0 100644
+index 1e894d34bdceb2..1bcb1365b1d065 100644
 --- a/include/linux/page_idle.h
 +++ b/include/linux/page_idle.h
 @@ -8,46 +8,16 @@
@@ -8534,9 +8313,6 @@ index 1e894d34bdce..1bcb1365b1d0 100644
 +	folio_clear_idle(page_folio(page));
 +}
  #endif /* _LINUX_MM_PAGE_IDLE_H */
--- 
-2.33.0
-
 
 From 7f03fd5f7230ee05911ba8865d23da14b614f134 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8552,14 +8328,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/trace/events/pagemap.h | 14 +++++-------
  mm/swap.c                      | 41 ++++++++++++++++++----------------
  2 files changed, 28 insertions(+), 27 deletions(-)
 
 diff --git a/include/trace/events/pagemap.h b/include/trace/events/pagemap.h
-index 92ad176210ff..1fd0185d66e8 100644
+index 92ad176210ff5b..1fd0185d66e80b 100644
 --- a/include/trace/events/pagemap.h
 +++ b/include/trace/events/pagemap.h
 @@ -60,23 +60,21 @@ TRACE_EVENT(mm_lru_insertion,
@@ -8593,7 +8368,7 @@ index 92ad176210ff..1fd0185d66e8 100644
  
  #endif /* _TRACE_PAGEMAP_H */
 diff --git a/mm/swap.c b/mm/swap.c
-index 176adb12ce84..68c374a61be6 100644
+index 176adb12ce8443..68c374a61be653 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -322,15 +322,15 @@ void lru_note_cost_page(struct page *page)
@@ -8684,9 +8459,6 @@ index 176adb12ce84..68c374a61be6 100644
  		else
  			__lru_cache_activate_page(page);
  		ClearPageReferenced(page);
--- 
-2.33.0
-
 
 From 48cc7b54fb3f3c55844a3410fb1b46ed64522a4b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8703,7 +8475,6 @@ by 91 bytes.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/swap.h |  3 ++-
  mm/folio-compat.c    |  7 +++++++
@@ -8711,7 +8482,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 25 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index 989d8f78c256..c7a4c0a5863d 100644
+index 989d8f78c256ad..c7a4c0a5863d1f 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -352,7 +352,8 @@ extern void lru_note_cost(struct lruvec *lruvec, bool file,
@@ -8725,7 +8496,7 @@ index 989d8f78c256..c7a4c0a5863d 100644
  extern atomic_t lru_disable_count;
  
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 7044fcc8a8aa..a374747ae1c6 100644
+index 7044fcc8a8aa82..a374747ae1c6d5 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -5,6 +5,7 @@
@@ -8747,7 +8518,7 @@ index 7044fcc8a8aa..a374747ae1c6 100644
 +}
 +EXPORT_SYMBOL(mark_page_accessed);
 diff --git a/mm/swap.c b/mm/swap.c
-index 68c374a61be6..22ca05042e62 100644
+index 68c374a61be653..22ca05042e6239 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -390,7 +390,7 @@ static void folio_activate(struct folio *folio)
@@ -8820,9 +8591,6 @@ index 68c374a61be6..22ca05042e62 100644
  
  /**
   * lru_cache_add - add a page to a page list
--- 
-2.33.0
-
 
 From 1df88c23b3596126676599926be6eec630f60d9b Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8840,14 +8608,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/rmap.h | 10 ++++++----
  mm/rmap.c            | 12 ++++++------
  2 files changed, 12 insertions(+), 10 deletions(-)
 
 diff --git a/include/linux/rmap.h b/include/linux/rmap.h
-index c976cc6de257..e704b1a4c06c 100644
+index c976cc6de25747..e704b1a4c06c09 100644
 --- a/include/linux/rmap.h
 +++ b/include/linux/rmap.h
 @@ -235,7 +235,7 @@ unsigned long page_address_in_vma(struct page *, struct vm_area_struct *);
@@ -8878,7 +8645,7 @@ index c976cc6de257..e704b1a4c06c 100644
 +}
  #endif	/* _LINUX_RMAP_H */
 diff --git a/mm/rmap.c b/mm/rmap.c
-index 1df8683c4c4c..b3aae8eeaeaf 100644
+index 1df8683c4c4ccb..b3aae8eeaeaf42 100644
 --- a/mm/rmap.c
 +++ b/mm/rmap.c
 @@ -980,7 +980,7 @@ static bool invalid_mkclean_vma(struct vm_area_struct *vma, void *arg)
@@ -8916,9 +8683,6 @@ index 1df8683c4c4c..b3aae8eeaeaf 100644
  
  /**
   * page_move_anon_rmap - move a page to our anon_vma
--- 
-2.33.0
-
 
 From 77f827c86aaae1d9c41701661f2ff5b03b85ac01 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -8932,7 +8696,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/migrate.h |  2 +
  mm/folio-compat.c       | 11 ++++++
@@ -8940,7 +8703,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 57 insertions(+), 41 deletions(-)
 
 diff --git a/include/linux/migrate.h b/include/linux/migrate.h
-index 23dadf7aeba8..eb14495a1f46 100644
+index 23dadf7aeba896..eb14495a1f468d 100644
 --- a/include/linux/migrate.h
 +++ b/include/linux/migrate.h
 @@ -51,6 +51,8 @@ extern int migrate_huge_page_move_mapping(struct address_space *mapping,
@@ -8953,7 +8716,7 @@ index 23dadf7aeba8..eb14495a1f46 100644
  
  static inline void putback_movable_pages(struct list_head *l) {}
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index a374747ae1c6..d883d964fd52 100644
+index a374747ae1c6d5..d883d964fd5205 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -4,6 +4,7 @@
@@ -8979,7 +8742,7 @@ index a374747ae1c6..d883d964fd52 100644
 +EXPORT_SYMBOL(migrate_page_move_mapping);
 +#endif
 diff --git a/mm/migrate.c b/mm/migrate.c
-index 7cffbc716d8f..6e90a9d5eaf7 100644
+index 7cffbc716d8fa9..6e90a9d5eaf796 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -363,7 +363,7 @@ static int expected_page_refs(struct address_space *mapping, struct page *page)
@@ -9176,9 +8939,6 @@ index 7cffbc716d8f..6e90a9d5eaf7 100644
   * ZONE_DEVICE page.
   */
  static bool migrate_vma_check_page(struct page *page)
--- 
-2.33.0
-
 
 From 410b78ea087eab91d91869bda12681be5e272fdf Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9195,7 +8955,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Zi Yan <ziy@nvidia.com>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/ksm.h        |  4 +-
  include/linux/migrate.h    |  1 +
@@ -9207,7 +8966,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  7 files changed, 77 insertions(+), 67 deletions(-)
 
 diff --git a/include/linux/ksm.h b/include/linux/ksm.h
-index 161e8164abcf..a38a5bca1ba5 100644
+index 161e8164abcf53..a38a5bca1ba58e 100644
 --- a/include/linux/ksm.h
 +++ b/include/linux/ksm.h
 @@ -52,7 +52,7 @@ struct page *ksm_might_need_to_copy(struct page *page,
@@ -9229,7 +8988,7 @@ index 161e8164abcf..a38a5bca1ba5 100644
  }
  #endif /* CONFIG_MMU */
 diff --git a/include/linux/migrate.h b/include/linux/migrate.h
-index eb14495a1f46..ba0a554b3eae 100644
+index eb14495a1f468d..ba0a554b3eae49 100644
 --- a/include/linux/migrate.h
 +++ b/include/linux/migrate.h
 @@ -51,6 +51,7 @@ extern int migrate_huge_page_move_mapping(struct address_space *mapping,
@@ -9241,7 +9000,7 @@ index eb14495a1f46..ba0a554b3eae 100644
  		struct folio *newfolio, struct folio *folio, int extra_count);
  #else
 diff --git a/include/linux/page_owner.h b/include/linux/page_owner.h
-index 719bfe5108c5..43c638c51c1f 100644
+index 719bfe5108c560..43c638c51c1f58 100644
 --- a/include/linux/page_owner.h
 +++ b/include/linux/page_owner.h
 @@ -12,7 +12,7 @@ extern void __reset_page_owner(struct page *page, unsigned int order);
@@ -9276,7 +9035,7 @@ index 719bfe5108c5..43c638c51c1f 100644
  }
  static inline void set_page_owner_migrate_reason(struct page *page, int reason)
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index d883d964fd52..3f00ad92d1ff 100644
+index d883d964fd5205..3f00ad92d1ff5a 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -58,4 +58,10 @@ int migrate_page_move_mapping(struct address_space *mapping,
@@ -9291,7 +9050,7 @@ index d883d964fd52..3f00ad92d1ff 100644
 +EXPORT_SYMBOL(migrate_page_states);
  #endif
 diff --git a/mm/ksm.c b/mm/ksm.c
-index 23d36b59f997..3a70786906eb 100644
+index 23d36b59f9975f..3a70786906eb99 100644
 --- a/mm/ksm.c
 +++ b/mm/ksm.c
 @@ -753,7 +753,7 @@ static struct page *get_ksm_page(struct stable_node *stable_node,
@@ -9358,7 +9117,7 @@ index 23d36b59f997..3a70786906eb 100644
  }
  #endif /* CONFIG_MIGRATION */
 diff --git a/mm/migrate.c b/mm/migrate.c
-index 6e90a9d5eaf7..faa4a76d162a 100644
+index 6e90a9d5eaf796..faa4a76d162a3f 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -538,82 +538,80 @@ int migrate_huge_page_move_mapping(struct address_space *mapping,
@@ -9494,7 +9253,7 @@ index 6e90a9d5eaf7..faa4a76d162a 100644
  }
  EXPORT_SYMBOL(migrate_page);
 diff --git a/mm/page_owner.c b/mm/page_owner.c
-index f51a57e92aa3..23bfb074ca3f 100644
+index f51a57e92aa380..23bfb074ca3fc8 100644
 --- a/mm/page_owner.c
 +++ b/mm/page_owner.c
 @@ -210,10 +210,10 @@ void __split_page_owner(struct page *page, unsigned int nr)
@@ -9525,9 +9284,6 @@ index f51a57e92aa3..23bfb074ca3f 100644
  	 * in that case we also don't need to explicitly clear the info from
  	 * the new page, which will be freed.
  	 */
--- 
-2.33.0
-
 
 From c48c3f879904a7f76db197068b63981c5c34843d Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9541,7 +9297,6 @@ Also convert copy_huge_page() to folio_copy().
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Zi Yan <ziy@nvidia.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/migrate.h |  1 +
  include/linux/mm.h      |  2 +-
@@ -9552,7 +9307,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  6 files changed, 31 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/migrate.h b/include/linux/migrate.h
-index ba0a554b3eae..6a01de9faff5 100644
+index ba0a554b3eae49..6a01de9faff589 100644
 --- a/include/linux/migrate.h
 +++ b/include/linux/migrate.h
 @@ -52,6 +52,7 @@ extern int migrate_huge_page_move_mapping(struct address_space *mapping,
@@ -9564,7 +9319,7 @@ index ba0a554b3eae..6a01de9faff5 100644
  		struct folio *newfolio, struct folio *folio, int extra_count);
  #else
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 9a670af47ca7..01f16537ab0c 100644
+index 9a670af47ca789..01f16537ab0ca7 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -911,7 +911,7 @@ void __put_page(struct page *page);
@@ -9577,7 +9332,7 @@ index 9a670af47ca7..01f16537ab0c 100644
  /*
   * Compound pages have a destructor function.  Provide a
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 3f00ad92d1ff..2ccd8f213fc4 100644
+index 3f00ad92d1ff5a..2ccd8f213fc4da 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -64,4 +64,10 @@ void migrate_page_states(struct page *newpage, struct page *page)
@@ -9592,7 +9347,7 @@ index 3f00ad92d1ff..2ccd8f213fc4 100644
 +EXPORT_SYMBOL(migrate_page_copy);
  #endif
 diff --git a/mm/hugetlb.c b/mm/hugetlb.c
-index 8ea35ba6699f..ce008f03dfbb 100644
+index 8ea35ba6699f26..ce008f03dfbb2a 100644
 --- a/mm/hugetlb.c
 +++ b/mm/hugetlb.c
 @@ -5207,7 +5207,7 @@ int hugetlb_mcopy_atomic_pte(struct mm_struct *dst_mm,
@@ -9605,7 +9360,7 @@ index 8ea35ba6699f..ce008f03dfbb 100644
  		*pagep = NULL;
  	}
 diff --git a/mm/migrate.c b/mm/migrate.c
-index faa4a76d162a..31cd972ae822 100644
+index faa4a76d162a3f..31cd972ae822e6 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -613,16 +613,12 @@ void folio_migrate_flags(struct folio *newfolio, struct folio *folio)
@@ -9639,7 +9394,7 @@ index faa4a76d162a..31cd972ae822 100644
  		folio_migrate_flags(newfolio, folio);
  	return MIGRATEPAGE_SUCCESS;
 diff --git a/mm/util.c b/mm/util.c
-index d020c077a44c..811a246f83b3 100644
+index d020c077a44c40..811a246f83b395 100644
 --- a/mm/util.c
 +++ b/mm/util.c
 @@ -728,13 +728,26 @@ int __page_mapcount(struct page *page)
@@ -9673,9 +9428,6 @@ index d020c077a44c..811a246f83b3 100644
  	}
  }
  
--- 
-2.33.0
-
 
 From ceb6ba36e9aaa3b817ebdde1d0c92235ededb6fb Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9688,13 +9440,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/backing-dev.h | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/include/linux/backing-dev.h b/include/linux/backing-dev.h
-index 44df4fcef65c..a852876bb6e2 100644
+index 44df4fcef65c1e..a852876bb6e238 100644
 --- a/include/linux/backing-dev.h
 +++ b/include/linux/backing-dev.h
 @@ -64,7 +64,7 @@ static inline bool bdi_has_dirty_io(struct backing_dev_info *bdi)
@@ -9721,9 +9472,6 @@ index 44df4fcef65c..a852876bb6e2 100644
  }
  
  static inline s64 wb_stat(struct bdi_writeback *wb, enum wb_stat_item item)
--- 
-2.33.0
-
 
 From 9cae1da4664ff9c03e9227bee1f705a8e1bfbddc Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9739,7 +9487,6 @@ compatibility wrapper.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: Jan Kara <jack@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/flex_proportions.h |  9 +++++----
  lib/flex_proportions.c           | 28 +++++++++++++++++++---------
@@ -9747,7 +9494,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 26 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/flex_proportions.h b/include/linux/flex_proportions.h
-index c12df59d3f5f..3e378b1fb0bc 100644
+index c12df59d3f5fcb..3e378b1fb0bc82 100644
 --- a/include/linux/flex_proportions.h
 +++ b/include/linux/flex_proportions.h
 @@ -83,9 +83,10 @@ struct fprop_local_percpu {
@@ -9774,7 +9521,7 @@ index c12df59d3f5f..3e378b1fb0bc 100644
  }
  
 diff --git a/lib/flex_proportions.c b/lib/flex_proportions.c
-index 451543937524..53e7eb1dd76c 100644
+index 45154393752433..53e7eb1dd76c96 100644
 --- a/lib/flex_proportions.c
 +++ b/lib/flex_proportions.c
 @@ -217,11 +217,12 @@ static void fprop_reflect_period_percpu(struct fprop_global *p,
@@ -9830,7 +9577,7 @@ index 451543937524..53e7eb1dd76c 100644
 +	__fprop_add_percpu(p, pl, nr);
  }
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index b34278d05395..f55f2ebdd9a9 100644
+index b34278d05395f2..f55f2ebdd9a9f6 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -566,8 +566,8 @@ static void wb_domain_writeout_inc(struct wb_domain *dom,
@@ -9844,9 +9591,6 @@ index b34278d05395..f55f2ebdd9a9 100644
  	/* First event after period switching was turned off? */
  	if (unlikely(!dom->period_time)) {
  		/*
--- 
-2.33.0
-
 
 From b89c2d78a5e28958f02872d235e3700fdc48253d Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9861,13 +9605,12 @@ Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: Jan Kara <jack@suse.cz>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/page-writeback.c | 22 +++++++++++-----------
  1 file changed, 11 insertions(+), 11 deletions(-)
 
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index f55f2ebdd9a9..e542ea37d605 100644
+index f55f2ebdd9a9f6..e542ea37d605ee 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -562,12 +562,12 @@ static unsigned long wp_next_time(unsigned long cur_time)
@@ -9929,9 +9672,6 @@ index f55f2ebdd9a9..e542ea37d605 100644
  			}
  		}
  
--- 
-2.33.0
-
 
 From d218cf0799aa7a7c62c87395bb9a8d691b9736d9 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -9950,7 +9690,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/page-flags.h |  1 -
  mm/filemap.c               |  2 +-
@@ -9959,7 +9698,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 17 insertions(+), 16 deletions(-)
 
 diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
-index c36e884ebbc1..243cac5ba492 100644
+index c36e884ebbc183..243cac5ba49254 100644
 --- a/include/linux/page-flags.h
 +++ b/include/linux/page-flags.h
 @@ -655,7 +655,6 @@ static __always_inline void SetPageUptodate(struct page *page)
@@ -9971,7 +9710,7 @@ index c36e884ebbc1..243cac5ba492 100644
  
  #define test_set_page_writeback(page)			\
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 4bf66a17ce1f..0a3bdbf8158a 100644
+index 4bf66a17ce1fa5..0a3bdbf8158a20 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1535,7 +1535,7 @@ void folio_end_writeback(struct folio *folio)
@@ -9984,7 +9723,7 @@ index 4bf66a17ce1f..0a3bdbf8158a 100644
  
  	smp_mb__after_atomic();
 diff --git a/mm/internal.h b/mm/internal.h
-index fa31a7f0ed79..08e8a28994d1 100644
+index fa31a7f0ed798f..08e8a28994d14d 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
 @@ -43,6 +43,7 @@ static inline void *folio_raw_mapping(struct folio *folio)
@@ -9996,7 +9735,7 @@ index fa31a7f0ed79..08e8a28994d1 100644
  void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
  		unsigned long floor, unsigned long ceiling);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index e542ea37d605..8d5d7921b157 100644
+index e542ea37d605ee..8d5d7921b15778 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -583,7 +583,7 @@ static void wb_domain_writeout_add(struct wb_domain *dom,
@@ -10065,9 +9804,6 @@ index e542ea37d605..8d5d7921b157 100644
  	return ret;
  }
  
--- 
-2.33.0
-
 
 From 2b72c02986c58f7a6a4959f0965391211bd91eae Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10087,7 +9823,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/page-flags.h | 19 +++++++++---------
  mm/folio-compat.c          |  6 ++++++
@@ -10095,7 +9830,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 37 insertions(+), 28 deletions(-)
 
 diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
-index 243cac5ba492..b48bc214fe89 100644
+index 243cac5ba49254..b48bc214fe897f 100644
 --- a/include/linux/page-flags.h
 +++ b/include/linux/page-flags.h
 @@ -655,21 +655,22 @@ static __always_inline void SetPageUptodate(struct page *page)
@@ -10131,7 +9866,7 @@ index 243cac5ba492..b48bc214fe89 100644
  
  __PAGEFLAG(Head, head, PF_ANY) CLEARPAGEFLAG(Head, head, PF_ANY)
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 2ccd8f213fc4..10ce5582d869 100644
+index 2ccd8f213fc4da..10ce5582d86987 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -71,3 +71,9 @@ void migrate_page_copy(struct page *newpage, struct page *page)
@@ -10145,7 +9880,7 @@ index 2ccd8f213fc4..10ce5582d869 100644
 +}
 +EXPORT_SYMBOL(set_page_writeback);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 8d5d7921b157..0336273154fb 100644
+index 8d5d7921b15778..0336273154fb90 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2773,21 +2773,23 @@ bool __folio_end_writeback(struct folio *folio)
@@ -10232,9 +9967,6 @@ index 8d5d7921b157..0336273154fb 100644
  
  /**
   * folio_wait_writeback - Wait for a folio to finish writeback.
--- 
-2.33.0
-
 
 From 601fc359bdd5b97adc0eab9921ec11a3078fef87 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10255,7 +9987,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h  |  3 ++-
  mm/folio-compat.c   |  6 ++++++
@@ -10263,7 +9994,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 27 insertions(+), 17 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 01f16537ab0c..c322a6e692c3 100644
+index 01f16537ab0ca7..c322a6e692c353 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -2008,7 +2008,8 @@ int redirty_page_for_writepage(struct writeback_control *wbc,
@@ -10277,7 +10008,7 @@ index 01f16537ab0c..c322a6e692c3 100644
  void __cancel_dirty_page(struct page *page);
  static inline void cancel_dirty_page(struct page *page)
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 10ce5582d869..2c2b3917b5dc 100644
+index 10ce5582d86987..2c2b3917b5dc95 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -77,3 +77,9 @@ bool set_page_writeback(struct page *page)
@@ -10291,7 +10022,7 @@ index 10ce5582d869..2c2b3917b5dc 100644
 +}
 +EXPORT_SYMBOL(set_page_dirty);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 0336273154fb..d7c0cad6a57f 100644
+index 0336273154fb90..d7c0cad6a57f63 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2564,18 +2564,21 @@ int redirty_page_for_writepage(struct writeback_control *wbc, struct page *page)
@@ -10350,9 +10081,6 @@ index 0336273154fb..d7c0cad6a57f 100644
  
  /*
   * set_page_dirty() is racy if the caller has no reference against
--- 
-2.33.0
-
 
 From e27060413a7d1871468bb837b58f191994009ef1 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10366,7 +10094,6 @@ the number of pages in the folio to support multi-page folios.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/memcontrol.h |  5 ++---
  include/linux/pagemap.h    |  7 ++++++-
@@ -10374,7 +10101,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 29 insertions(+), 24 deletions(-)
 
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index ecf756add326..dc6b8e75197f 100644
+index ecf756add3261a..dc6b8e75197ffa 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -1576,10 +1576,9 @@ void mem_cgroup_wb_stats(struct bdi_writeback *wb, unsigned long *pfilepages,
@@ -10399,7 +10126,7 @@ index ecf756add326..dc6b8e75197f 100644
  {
  }
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 08f40e004d97..3d88c17fedc9 100644
+index 08f40e004d97ef..3d88c17fedc922 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -773,8 +773,13 @@ void end_page_writeback(struct page *page);
@@ -10418,7 +10145,7 @@ index 08f40e004d97..3d88c17fedc9 100644
  int __set_page_dirty_no_writeback(struct page *page);
  
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index d7c0cad6a57f..3e02c86eb445 100644
+index d7c0cad6a57f63..3e02c86eb44537 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2421,29 +2421,30 @@ EXPORT_SYMBOL(__set_page_dirty_no_writeback);
@@ -10497,9 +10224,6 @@ index d7c0cad6a57f..3e02c86eb445 100644
  				PAGECACHE_TAG_DIRTY);
  	}
  	xa_unlock_irqrestore(&mapping->i_pages, flags);
--- 
-2.33.0
-
 
 From 96d994ccc90c144c49b1ab9d8ca5d575a7846410 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10513,14 +10237,13 @@ wait_on_page_writeback() to folio_wait_writeback().
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/trace/events/writeback.h | 20 ++++++++++----------
  mm/page-writeback.c              |  6 +++---
  2 files changed, 13 insertions(+), 13 deletions(-)
 
 diff --git a/include/trace/events/writeback.h b/include/trace/events/writeback.h
-index 297871ca0004..7dccb66474f7 100644
+index 297871ca000475..7dccb66474f735 100644
 --- a/include/trace/events/writeback.h
 +++ b/include/trace/events/writeback.h
 @@ -52,11 +52,11 @@ WB_WORK_REASON
@@ -10573,7 +10296,7 @@ index 297871ca0004..7dccb66474f7 100644
  
  DECLARE_EVENT_CLASS(writeback_dirty_inode_template,
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 3e02c86eb445..2dc410b110ff 100644
+index 3e02c86eb44537..2dc410b110ff82 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2426,7 +2426,7 @@ static void folio_account_dirtied(struct folio *folio,
@@ -10603,9 +10326,6 @@ index 3e02c86eb445..2dc410b110ff 100644
  		if (folio_wait_bit_killable(folio, PG_writeback))
  			return -EINTR;
  	}
--- 
-2.33.0
-
 
 From c4022ee2d85e2fb53e12c476d367ba037f3f329a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10621,7 +10341,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/writeback.h |  1 +
  mm/folio-compat.c         |  6 ++++
@@ -10629,7 +10348,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 38 insertions(+), 29 deletions(-)
 
 diff --git a/include/linux/writeback.h b/include/linux/writeback.h
-index 667e86cfbdcf..eda9cc778ef6 100644
+index 667e86cfbdcfe3..eda9cc778ef6da 100644
 --- a/include/linux/writeback.h
 +++ b/include/linux/writeback.h
 @@ -398,6 +398,7 @@ void writeback_set_ratelimit(void);
@@ -10641,7 +10360,7 @@ index 667e86cfbdcf..eda9cc778ef6 100644
  
  void sb_mark_inode_writeback(struct inode *inode);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 2c2b3917b5dc..dad962b920e5 100644
+index 2c2b3917b5dc95..dad962b920e5e1 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -83,3 +83,9 @@ bool set_page_dirty(struct page *page)
@@ -10655,7 +10374,7 @@ index 2c2b3917b5dc..dad962b920e5 100644
 +}
 +EXPORT_SYMBOL(__set_page_dirty_nobuffers);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 2dc410b110ff..bd97c461d499 100644
+index 2dc410b110ff82..bd97c461d4998a 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2488,41 +2488,43 @@ void __folio_mark_dirty(struct folio *folio, struct address_space *mapping,
@@ -10731,9 +10450,6 @@ index 2dc410b110ff..bd97c461d499 100644
  
  /*
   * Call this whenever redirtying a page, to de-account the dirty counters
--- 
-2.33.0
-
 
 From 88857d445bb7d135b2707254f5f78d55a8ba3d41 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10750,7 +10466,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h      |  3 ---
  include/linux/pagemap.h |  7 +++++++
@@ -10758,7 +10473,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 13 insertions(+), 8 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index c322a6e692c3..a554d792e82b 100644
+index c322a6e692c353..a554d792e82b50 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -39,7 +39,6 @@ struct anon_vma_chain;
@@ -10779,7 +10494,7 @@ index c322a6e692c3..a554d792e82b 100644
  bool set_page_dirty(struct page *page);
  int set_page_dirty_lock(struct page *page);
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 3d88c17fedc9..665ba6a67385 100644
+index 3d88c17fedc922..665ba6a673853d 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -779,6 +779,13 @@ static inline void __set_page_dirty(struct page *page,
@@ -10797,7 +10512,7 @@ index 3d88c17fedc9..665ba6a67385 100644
  int __set_page_dirty_nobuffers(struct page *page);
  int __set_page_dirty_no_writeback(struct page *page);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index bd97c461d499..9b91cf90a33f 100644
+index bd97c461d4998a..9b91cf90a33f4e 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2453,14 +2453,15 @@ static void folio_account_dirtied(struct folio *folio,
@@ -10821,9 +10536,6 @@ index bd97c461d499..9b91cf90a33f 100644
  	}
  }
  
--- 
-2.33.0
-
 
 From 723b834dc431c226091388b4334a94e134f1ded0 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10839,7 +10551,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h      |  7 -------
  include/linux/pagemap.h | 11 +++++++++++
@@ -10847,7 +10558,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 19 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index a554d792e82b..614d35b8d813 100644
+index a554d792e82b50..614d35b8d813bd 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -2008,13 +2008,6 @@ int redirty_page_for_writepage(struct writeback_control *wbc,
@@ -10865,7 +10576,7 @@ index a554d792e82b..614d35b8d813 100644
  
  int get_cmdline(struct task_struct *task, char *buffer, int buflen);
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 665ba6a67385..a4d0aeaf884d 100644
+index 665ba6a673853d..a4d0aeaf884d8a 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -786,6 +786,17 @@ static inline void account_page_cleaned(struct page *page,
@@ -10887,7 +10598,7 @@ index 665ba6a67385..a4d0aeaf884d 100644
  int __set_page_dirty_nobuffers(struct page *page);
  int __set_page_dirty_no_writeback(struct page *page);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 9b91cf90a33f..b6a4868f6876 100644
+index 9b91cf90a33f4e..b6a4868f687623 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2640,28 +2640,28 @@ EXPORT_SYMBOL(set_page_dirty_lock);
@@ -10927,9 +10638,6 @@ index 9b91cf90a33f..b6a4868f6876 100644
  
  /*
   * Clear a page's dirty flag, while caring for dirty memory accounting.
--- 
-2.33.0
-
 
 From ddc194609f61a4990299864257be8dfe92f63a95 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -10949,7 +10657,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h      |  1 -
  include/linux/pagemap.h |  2 ++
@@ -10958,7 +10665,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  4 files changed, 40 insertions(+), 32 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 614d35b8d813..480960fc7a5f 100644
+index 614d35b8d813bd..480960fc7a5fbb 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -2008,7 +2008,6 @@ int redirty_page_for_writepage(struct writeback_control *wbc,
@@ -10970,7 +10677,7 @@ index 614d35b8d813..480960fc7a5f 100644
  int get_cmdline(struct task_struct *task, char *buffer, int buflen);
  
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index a4d0aeaf884d..006de2d84d06 100644
+index a4d0aeaf884d8a..006de2d84d0655 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -797,6 +797,8 @@ static inline void cancel_dirty_page(struct page *page)
@@ -10983,7 +10690,7 @@ index a4d0aeaf884d..006de2d84d06 100644
  int __set_page_dirty_nobuffers(struct page *page);
  int __set_page_dirty_no_writeback(struct page *page);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index dad962b920e5..39f5a8d963b1 100644
+index dad962b920e5e1..39f5a8d963b189 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -89,3 +89,9 @@ int __set_page_dirty_nobuffers(struct page *page)
@@ -10997,7 +10704,7 @@ index dad962b920e5..39f5a8d963b1 100644
 +}
 +EXPORT_SYMBOL(clear_page_dirty_for_io);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index b6a4868f6876..3cc858eacdcb 100644
+index b6a4868f687623..3cc858eacdcbd3 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2664,25 +2664,25 @@ void __folio_cancel_dirty(struct folio *folio)
@@ -11107,9 +10814,6 @@ index b6a4868f6876..3cc858eacdcb 100644
  
  bool __folio_end_writeback(struct folio *folio)
  {
--- 
-2.33.0
-
 
 From 88a296f33199cc7778fd22abb96525877731a43a Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11125,14 +10829,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/writeback.h |  6 +++++-
  mm/page-writeback.c       | 32 +++++++++++++++++++-------------
  2 files changed, 24 insertions(+), 14 deletions(-)
 
 diff --git a/include/linux/writeback.h b/include/linux/writeback.h
-index eda9cc778ef6..50cb6e25ab9e 100644
+index eda9cc778ef6da..50cb6e25ab9eef 100644
 --- a/include/linux/writeback.h
 +++ b/include/linux/writeback.h
 @@ -399,7 +399,11 @@ void tag_pages_for_writeback(struct address_space *mapping,
@@ -11149,7 +10852,7 @@ index eda9cc778ef6..50cb6e25ab9e 100644
  void sb_mark_inode_writeback(struct inode *inode);
  void sb_clear_inode_writeback(struct inode *inode);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 3cc858eacdcb..9324c262280c 100644
+index 3cc858eacdcbd3..9324c262280c9c 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -1084,7 +1084,7 @@ static void wb_update_write_bandwidth(struct bdi_writeback *wb,
@@ -11210,9 +10913,6 @@ index 3cc858eacdcb..9324c262280c 100644
  
  /*
   * When a writepage implementation decides that it doesn't want to write this
--- 
-2.33.0
-
 
 From 64fbcbe00d4800b46d7f6720ec1cb3a5925c53bf Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11227,7 +10927,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  fs/jfs/jfs_metapage.c     |  1 +
  include/linux/mm.h        |  4 ----
@@ -11237,7 +10936,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  5 files changed, 30 insertions(+), 14 deletions(-)
 
 diff --git a/fs/jfs/jfs_metapage.c b/fs/jfs/jfs_metapage.c
-index 176580f54af9..104ae698443e 100644
+index 176580f54af961..104ae698443ed0 100644
 --- a/fs/jfs/jfs_metapage.c
 +++ b/fs/jfs/jfs_metapage.c
 @@ -13,6 +13,7 @@
@@ -11249,7 +10948,7 @@ index 176580f54af9..104ae698443e 100644
  #include "jfs_superblock.h"
  #include "jfs_filsys.h"
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 480960fc7a5f..9a738a7d4b33 100644
+index 480960fc7a5fbb..9a738a7d4b3315 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -36,9 +36,7 @@
@@ -11272,7 +10971,7 @@ index 480960fc7a5f..9a738a7d4b33 100644
  bool set_page_dirty(struct page *page);
  int set_page_dirty_lock(struct page *page);
 diff --git a/include/linux/writeback.h b/include/linux/writeback.h
-index 50cb6e25ab9e..5383f7e39816 100644
+index 50cb6e25ab9eef..5383f7e39816a1 100644
 --- a/include/linux/writeback.h
 +++ b/include/linux/writeback.h
 @@ -404,6 +404,8 @@ static inline void account_page_redirty(struct page *page)
@@ -11285,7 +10984,7 @@ index 50cb6e25ab9e..5383f7e39816 100644
  void sb_mark_inode_writeback(struct inode *inode);
  void sb_clear_inode_writeback(struct inode *inode);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 39f5a8d963b1..c1e01bc36d32 100644
+index 39f5a8d963b189..c1e01bc36d3225 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -95,3 +95,10 @@ bool clear_page_dirty_for_io(struct page *page)
@@ -11300,7 +10999,7 @@ index 39f5a8d963b1..c1e01bc36d32 100644
 +}
 +EXPORT_SYMBOL(redirty_page_for_writepage);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 9324c262280c..993d30c929a2 100644
+index 9324c262280c9c..993d30c929a274 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2558,21 +2558,31 @@ void folio_account_redirty(struct folio *folio)
@@ -11345,9 +11044,6 @@ index 9324c262280c..993d30c929a2 100644
  
  /**
   * folio_mark_dirty - Mark a folio as being modified.
--- 
-2.33.0
-
 
 From 31208c96706bfc313ad0515dff4baf9fb0f48cdb Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11360,13 +11056,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 18 ++++++++++++------
  1 file changed, 12 insertions(+), 6 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 006de2d84d06..412db88b8d0c 100644
+index 006de2d84d0655..412db88b8d0c4b 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -1150,19 +1150,25 @@ static inline int page_mkwrite_check_truncate(struct page *page,
@@ -11401,9 +11096,6 @@ index 006de2d84d06..412db88b8d0c 100644
 +	return i_blocks_per_folio(inode, page_folio(page));
  }
  #endif /* _LINUX_PAGEMAP_H */
--- 
-2.33.0
-
 
 From 2b2a7a9eb7b96be87a898b56a88c95132b3ceb9e Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11414,13 +11106,12 @@ This is the folio equivalent of page_mkwrite_check_truncate().
 
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 28 ++++++++++++++++++++++++++++
  1 file changed, 28 insertions(+)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 412db88b8d0c..18c06c3e42c3 100644
+index 412db88b8d0c4b..18c06c3e42c3f1 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -1121,6 +1121,34 @@ static inline unsigned long dir_pages(struct inode *inode)
@@ -11458,9 +11149,6 @@ index 412db88b8d0c..18c06c3e42c3 100644
  /**
   * page_mkwrite_check_truncate - check if page was truncated
   * @page: the page to check
--- 
-2.33.0
-
 
 From dab66420bc7ccb86129580ca276e1cb63edbb3e5 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11476,13 +11164,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 54 +++++++++++++++++++++++++++++------------
  1 file changed, 39 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 18c06c3e42c3..15bb6f0fe417 100644
+index 18c06c3e42c3f1..15bb6f0fe41774 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -988,33 +988,57 @@ void page_cache_async_readahead(struct address_space *mapping,
@@ -11558,9 +11245,6 @@ index 18c06c3e42c3..15bb6f0fe417 100644
  }
  
  static inline unsigned int __readahead_batch(struct readahead_control *rac,
--- 
-2.33.0
-
 
 From 48c0a2723493d3507201dd101f253412a4a29712 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11576,7 +11260,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/swap.h   |  4 ++--
  include/linux/vmstat.h |  6 ------
@@ -11588,7 +11271,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  7 files changed, 31 insertions(+), 35 deletions(-)
 
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index c7a4c0a5863d..5e01675af7ab 100644
+index c7a4c0a5863d1f..5e01675af7ab9b 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -329,7 +329,7 @@ static inline swp_entry_t folio_swap_entry(struct folio *folio)
@@ -11610,7 +11293,7 @@ index c7a4c0a5863d..5e01675af7ab 100644
  void mark_page_accessed(struct page *);
  void folio_mark_accessed(struct folio *);
 diff --git a/include/linux/vmstat.h b/include/linux/vmstat.h
-index 241bd0f53fb9..bfe38869498d 100644
+index 241bd0f53fb976..bfe38869498d7c 100644
 --- a/include/linux/vmstat.h
 +++ b/include/linux/vmstat.h
 @@ -597,12 +597,6 @@ static inline void mod_lruvec_page_state(struct page *page,
@@ -11627,7 +11310,7 @@ index 241bd0f53fb9..bfe38869498d 100644
  					   enum node_stat_item idx)
  {
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 0a3bdbf8158a..5c2c522813d3 100644
+index 0a3bdbf8158a20..5c2c522813d36d 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -981,7 +981,7 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
@@ -11640,7 +11323,7 @@ index 0a3bdbf8158a..5c2c522813d3 100644
  	}
  	return ret;
 diff --git a/mm/memory.c b/mm/memory.c
-index b477acf4595f..d78394b276b8 100644
+index b477acf4595fc6..d78394b276b892 100644
 --- a/mm/memory.c
 +++ b/mm/memory.c
 @@ -3538,7 +3538,8 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
@@ -11654,7 +11337,7 @@ index b477acf4595f..d78394b276b8 100644
  				lru_cache_add(page);
  
 diff --git a/mm/swap.c b/mm/swap.c
-index 22ca05042e62..69c38f6bab2d 100644
+index 22ca05042e6239..69c38f6bab2d59 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -315,11 +315,10 @@ void lru_note_cost(struct lruvec *lruvec, bool file, unsigned int nr_pages)
@@ -11673,7 +11356,7 @@ index 22ca05042e62..69c38f6bab2d 100644
  
  static void __folio_activate(struct folio *folio, struct lruvec *lruvec)
 diff --git a/mm/swap_state.c b/mm/swap_state.c
-index bc7cee6b2ec5..8d4104242100 100644
+index bc7cee6b2ec54c..8d410424210007 100644
 --- a/mm/swap_state.c
 +++ b/mm/swap_state.c
 @@ -498,7 +498,7 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
@@ -11686,7 +11369,7 @@ index bc7cee6b2ec5..8d4104242100 100644
  	/* Caller will initiate read into locked page */
  	lru_cache_add(page);
 diff --git a/mm/workingset.c b/mm/workingset.c
-index 39bb60d50217..9f91c28cc0ce 100644
+index 39bb60d5021732..9f91c28cc0ceb9 100644
 --- a/mm/workingset.c
 +++ b/mm/workingset.c
 @@ -273,17 +273,17 @@ void *workingset_eviction(struct page *page, struct mem_cgroup *target_memcg)
@@ -11781,9 +11464,6 @@ index 39bb60d50217..9f91c28cc0ce 100644
  	}
  out:
  	rcu_read_unlock();
--- 
-2.33.0
-
 
 From 21ca99ea644c7ac6f9355df1d0a365957f73fa28 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11798,13 +11478,12 @@ the difference.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/internal.h | 27 +++++++++++++++++++--------
  1 file changed, 19 insertions(+), 8 deletions(-)
 
 diff --git a/mm/internal.h b/mm/internal.h
-index 08e8a28994d1..0910efec5821 100644
+index 08e8a28994d14d..0910efec5821a8 100644
 --- a/mm/internal.h
 +++ b/mm/internal.h
 @@ -72,17 +72,28 @@ unsigned find_lock_entries(struct address_space *mapping, pgoff_t start,
@@ -11844,9 +11523,6 @@ index 08e8a28994d1..0910efec5821 100644
  static inline bool page_evictable(struct page *page)
  {
  	bool ret;
--- 
-2.33.0
-
 
 From 4506e596f2a7c832d1d5d923e048b86c07d5aa0d Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -11859,14 +11535,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/trace/events/pagemap.h | 32 +++++++++++-----------
  mm/swap.c                      | 49 +++++++++++++++++-----------------
  2 files changed, 41 insertions(+), 40 deletions(-)
 
 diff --git a/include/trace/events/pagemap.h b/include/trace/events/pagemap.h
-index 1fd0185d66e8..171524d3526d 100644
+index 1fd0185d66e80b..171524d3526dbb 100644
 --- a/include/trace/events/pagemap.h
 +++ b/include/trace/events/pagemap.h
 @@ -16,38 +16,38 @@
@@ -11925,7 +11600,7 @@ index 1fd0185d66e8..171524d3526d 100644
  			__entry->lru,
  			__entry->flags & PAGEMAP_MAPPED		? "M" : " ",
 diff --git a/mm/swap.c b/mm/swap.c
-index 69c38f6bab2d..c402a95de2ee 100644
+index 69c38f6bab2d59..c402a95de2ee78 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -1001,17 +1001,18 @@ void __pagevec_release(struct pagevec *pvec)
@@ -12019,9 +11694,6 @@ index 69c38f6bab2d..c402a95de2ee 100644
  	}
  	if (lruvec)
  		unlock_page_lruvec_irqrestore(lruvec, flags);
--- 
-2.33.0
-
 
 From 3a28007f2a0f67f755bc7296b534d668d00309b2 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12035,7 +11707,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/swap.h |  1 +
  mm/folio-compat.c    |  6 ++++++
@@ -12043,7 +11714,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 18 insertions(+), 11 deletions(-)
 
 diff --git a/include/linux/swap.h b/include/linux/swap.h
-index 5e01675af7ab..81801ba78b1e 100644
+index 5e01675af7ab9b..81801ba78b1e8f 100644
 --- a/include/linux/swap.h
 +++ b/include/linux/swap.h
 @@ -351,6 +351,7 @@ extern unsigned long nr_free_buffer_pages(void);
@@ -12055,7 +11726,7 @@ index 5e01675af7ab..81801ba78b1e 100644
  void mark_page_accessed(struct page *);
  void folio_mark_accessed(struct folio *);
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index c1e01bc36d32..6de3cd78a4ae 100644
+index c1e01bc36d3225..6de3cd78a4aedb 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -102,3 +102,9 @@ bool redirty_page_for_writepage(struct writeback_control *wbc,
@@ -12069,7 +11740,7 @@ index c1e01bc36d32..6de3cd78a4ae 100644
 +}
 +EXPORT_SYMBOL(lru_cache_add);
 diff --git a/mm/swap.c b/mm/swap.c
-index c402a95de2ee..a8bc81468eeb 100644
+index c402a95de2ee78..a8bc81468eeb0f 100644
 --- a/mm/swap.c
 +++ b/mm/swap.c
 @@ -459,29 +459,29 @@ void folio_mark_accessed(struct folio *folio)
@@ -12113,9 +11784,6 @@ index c402a95de2ee..a8bc81468eeb 100644
  
  /**
   * lru_cache_add_inactive_or_unevictable
--- 
-2.33.0
-
 
 From 343f4269eabd58c3805bf862aa6ef4d792d7175c Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12130,7 +11798,6 @@ is large enough to have one.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/gfp.h | 16 ++++++++++++++++
  mm/mempolicy.c      | 10 ++++++++++
@@ -12138,7 +11805,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 38 insertions(+)
 
 diff --git a/include/linux/gfp.h b/include/linux/gfp.h
-index dc5ff40608ce..3745efd21cf6 100644
+index dc5ff40608ce90..3745efd21cf6df 100644
 --- a/include/linux/gfp.h
 +++ b/include/linux/gfp.h
 @@ -523,6 +523,8 @@ static inline void arch_alloc_page(struct page *page, int order) { }
@@ -12186,7 +11853,7 @@ index dc5ff40608ce..3745efd21cf6 100644
  	alloc_pages(gfp_mask, order)
  #define alloc_hugepage_vma(gfp_mask, vma, addr, order) \
 diff --git a/mm/mempolicy.c b/mm/mempolicy.c
-index e32360e90274..95d0cf05f7ca 100644
+index e32360e9027447..95d0cf05f7ca44 100644
 --- a/mm/mempolicy.c
 +++ b/mm/mempolicy.c
 @@ -2249,6 +2249,16 @@ struct page *alloc_pages(gfp_t gfp, unsigned order)
@@ -12207,7 +11874,7 @@ index e32360e90274..95d0cf05f7ca 100644
  {
  	struct mempolicy *pol = mpol_dup(vma_policy(src));
 diff --git a/mm/page_alloc.c b/mm/page_alloc.c
-index c0295294cda9..aa9eb2dc547b 100644
+index c0295294cda966..aa9eb2dc547b20 100644
 --- a/mm/page_alloc.c
 +++ b/mm/page_alloc.c
 @@ -5415,6 +5415,18 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
@@ -12229,9 +11896,6 @@ index c0295294cda9..aa9eb2dc547b 100644
  /*
   * Common helper functions. Never use with __GFP_HIGHMEM because the returned
   * address cannot represent highmem pages. Use alloc_pages and then kmap if
--- 
-2.33.0
-
 
 From 6e636175f29ba0aa153ed7264d79ca53d0ae577f Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12247,14 +11911,13 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 11 ++++++++---
  mm/filemap.c            | 14 +++++++-------
  2 files changed, 15 insertions(+), 10 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 15bb6f0fe417..6618993ffe4c 100644
+index 15bb6f0fe41774..6618993ffe4c02 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -262,14 +262,19 @@ static inline void *detach_page_private(struct page *page)
@@ -12281,7 +11944,7 @@ index 15bb6f0fe417..6618993ffe4c 100644
  {
  	return __page_cache_alloc(mapping_gfp_mask(x));
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 5c2c522813d3..6ca8abd75c36 100644
+index 5c2c522813d36d..6ca8abd75c36ac 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -989,24 +989,24 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
@@ -12316,9 +11979,6 @@ index 5c2c522813d3..6ca8abd75c36 100644
  #endif
  
  /*
--- 
-2.33.0
-
 
 From 8b5fa5d4783285061e9e42798904bae901bb87ae Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12335,7 +11995,6 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h      |  7 -----
  include/linux/pagemap.h | 10 ++++--
@@ -12345,7 +12004,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  5 files changed, 50 insertions(+), 46 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 9a738a7d4b33..571db16ecf64 100644
+index 9a738a7d4b3315..571db16ecf6400 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -213,13 +213,6 @@ int overcommit_kbytes_handler(struct ctl_table *, int, void *, size_t *,
@@ -12363,7 +12022,7 @@ index 9a738a7d4b33..571db16ecf64 100644
  #if defined(CONFIG_SPARSEMEM) && !defined(CONFIG_SPARSEMEM_VMEMMAP)
  #define nth_page(page,n) pfn_to_page(page_to_pfn((page)) + (n))
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 6618993ffe4c..3ff457210a14 100644
+index 6618993ffe4c02..3ff457210a1401 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -877,9 +877,11 @@ static inline int fault_in_pages_readable(const char __user *uaddr, int size)
@@ -12392,7 +12051,7 @@ index 6618993ffe4c..3ff457210a14 100644
   * struct readahead_control - Describes a readahead request.
   *
 diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
-index 49f07e2bf23b..f04156f2b3e8 100644
+index 49f07e2bf23b9b..f04156f2b3e8fb 100644
 --- a/kernel/bpf/verifier.c
 +++ b/kernel/bpf/verifier.c
 @@ -12972,7 +12972,7 @@ BTF_SET_START(btf_non_sleepable_error_inject)
@@ -12405,7 +12064,7 @@ index 49f07e2bf23b..f04156f2b3e8 100644
  BTF_ID(func, should_failslab)
  BTF_SET_END(btf_non_sleepable_error_inject)
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 6ca8abd75c36..4b1e597d3f5c 100644
+index 6ca8abd75c36ac..4b1e597d3f5cc9 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -855,26 +855,25 @@ void replace_page_cache_page(struct page *old, struct page *new)
@@ -12560,7 +12219,7 @@ index 6ca8abd75c36..4b1e597d3f5c 100644
  #ifdef CONFIG_NUMA
  struct folio *filemap_alloc_folio(gfp_t gfp, unsigned int order)
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 6de3cd78a4ae..6b19bc4ed6b0 100644
+index 6de3cd78a4aedb..6b19bc4ed6b05b 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -108,3 +108,10 @@ void lru_cache_add(struct page *page)
@@ -12574,9 +12233,6 @@ index 6de3cd78a4ae..6b19bc4ed6b0 100644
 +	return filemap_add_folio(mapping, page_folio(page), index, gfp);
 +}
 +EXPORT_SYMBOL(add_to_page_cache_lru);
--- 
-2.33.0
-
 
 From 840d507e6f0c6c89d136908b75f16d702e3f9405 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12592,13 +12248,12 @@ Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: Christoph Hellwig <hch@lst.de>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  mm/filemap.c | 35 ++++++++++++++---------------------
  1 file changed, 14 insertions(+), 21 deletions(-)
 
 diff --git a/mm/filemap.c b/mm/filemap.c
-index 4b1e597d3f5c..f80ec444d411 100644
+index 4b1e597d3f5cc9..f80ec444d4114f 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1755,49 +1755,42 @@ EXPORT_SYMBOL(page_cache_prev_miss);
@@ -12665,9 +12320,6 @@ index 4b1e597d3f5c..f80ec444d411 100644
  }
  
  /**
--- 
-2.33.0
-
 
 From 036e5e704e11ba55037d85b427c022c6ef006970 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12686,7 +12338,6 @@ pagecache_get_page() wrapper is 99 bytes.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h | 41 +++++++++---------
  mm/filemap.c            | 92 ++++++++++++++++++++---------------------
@@ -12694,7 +12345,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 76 insertions(+), 69 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 3ff457210a14..967411a945a6 100644
+index 3ff457210a1401..967411a945a61d 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -302,8 +302,26 @@ pgoff_t page_cache_prev_miss(struct address_space *mapping,
@@ -12753,7 +12404,7 @@ index 3ff457210a14..967411a945a6 100644
   * find_or_create_page - locate or add a pagecache page
   * @mapping: the page's address_space
 diff --git a/mm/filemap.c b/mm/filemap.c
-index f80ec444d411..bdd80e70b0b3 100644
+index f80ec444d4114f..bdd80e70b0b307 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1794,93 +1794,89 @@ static void *mapping_get_entry(struct address_space *mapping, pgoff_t index)
@@ -12923,7 +12574,7 @@ index f80ec444d411..bdd80e70b0b3 100644
  static inline struct page *find_get_entry(struct xa_state *xas, pgoff_t max,
  		xa_mark_t mark)
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index 6b19bc4ed6b0..e833e680e944 100644
+index 6b19bc4ed6b05b..e833e680e944ac 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -115,3 +115,15 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
@@ -12942,9 +12593,6 @@ index 6b19bc4ed6b0..e833e680e944 100644
 +	return folio_file_page(folio, index);
 +}
 +EXPORT_SYMBOL(pagecache_get_page);
--- 
-2.33.0
-
 
 From 1bde951b96cef7879714ce54d8d9d78be640be33 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -12964,7 +12612,6 @@ grab_cache_page_write_begin() shrinks by 22 bytes to make up for it.
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
 Acked-by: Vlastimil Babka <vbabka@suse.cz>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/pagemap.h |  1 +
  mm/filemap.c            | 25 +++----------------------
@@ -12972,7 +12619,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 17 insertions(+), 22 deletions(-)
 
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 967411a945a6..38f6e022e7ac 100644
+index 967411a945a61d..38f6e022e7acf0 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -301,6 +301,7 @@ pgoff_t page_cache_prev_miss(struct address_space *mapping,
@@ -12984,7 +12631,7 @@ index 967411a945a6..38f6e022e7ac 100644
  struct folio *__filemap_get_folio(struct address_space *mapping, pgoff_t index,
  		int fgp_flags, gfp_t gfp);
 diff --git a/mm/filemap.c b/mm/filemap.c
-index bdd80e70b0b3..83d0e720054c 100644
+index bdd80e70b0b307..83d0e720054ce6 100644
 --- a/mm/filemap.c
 +++ b/mm/filemap.c
 @@ -1817,6 +1817,7 @@ static void *mapping_get_entry(struct address_space *mapping, pgoff_t index)
@@ -13034,7 +12681,7 @@ index bdd80e70b0b3..83d0e720054c 100644
  				struct iov_iter *i, loff_t pos)
  {
 diff --git a/mm/folio-compat.c b/mm/folio-compat.c
-index e833e680e944..5b6ae1da314e 100644
+index e833e680e944ac..5b6ae1da314ee0 100644
 --- a/mm/folio-compat.c
 +++ b/mm/folio-compat.c
 @@ -116,6 +116,7 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
@@ -13061,9 +12708,6 @@ index e833e680e944..5b6ae1da314e 100644
 +			mapping_gfp_mask(mapping));
 +}
 +EXPORT_SYMBOL(grab_cache_page_write_begin);
--- 
-2.33.0
-
 
 From 4d76e388584cae10f9a3212c02b3506ed92b89f3 Mon Sep 17 00:00:00 2001
 From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
@@ -13081,7 +12725,6 @@ putting a wrapper in the core.
 
 Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
 Reviewed-by: David Howells <dhowells@redhat.com>
-Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
 ---
  include/linux/mm.h      |  4 ----
  include/linux/pagemap.h |  5 +++++
@@ -13089,7 +12732,7 @@ Signed-off-by: Dimitar Atanasov <datanasov@cpdbg.com>
  3 files changed, 20 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/mm.h b/include/linux/mm.h
-index 571db16ecf64..8e5c3a4646be 100644
+index 571db16ecf6400..8e5c3a4646be2c 100644
 --- a/include/linux/mm.h
 +++ b/include/linux/mm.h
 @@ -2787,10 +2787,6 @@ extern vm_fault_t filemap_map_pages(struct vm_fault *vmf,
@@ -13104,7 +12747,7 @@ index 571db16ecf64..8e5c3a4646be 100644
  /* Generic expand stack which grows the stack according to GROWS{UP,DOWN} */
  extern int expand_stack(struct vm_area_struct *vma, unsigned long address);
 diff --git a/include/linux/pagemap.h b/include/linux/pagemap.h
-index 38f6e022e7ac..f55d8d9001a9 100644
+index 38f6e022e7acf0..f55d8d9001a9f3 100644
 --- a/include/linux/pagemap.h
 +++ b/include/linux/pagemap.h
 @@ -804,6 +804,11 @@ static inline void cancel_dirty_page(struct page *page)
@@ -13120,7 +12763,7 @@ index 38f6e022e7ac..f55d8d9001a9 100644
  int __set_page_dirty_nobuffers(struct page *page);
  int __set_page_dirty_no_writeback(struct page *page);
 diff --git a/mm/page-writeback.c b/mm/page-writeback.c
-index 993d30c929a2..86b90173baf8 100644
+index 993d30c929a274..86b90173baf8a7 100644
 --- a/mm/page-writeback.c
 +++ b/mm/page-writeback.c
 @@ -2364,44 +2364,44 @@ int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
@@ -13183,6 +12826,3 @@ index 993d30c929a2..86b90173baf8 100644
  
  /*
   * For address_spaces which do not use buffers nor write back.
--- 
-2.33.0
-

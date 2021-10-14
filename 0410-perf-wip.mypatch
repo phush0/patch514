@@ -1,0 +1,1267 @@
+From e78ae9310e1c1df3e1e4b06a2584e92ca0798099 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 6 Oct 2021 06:15:04 -0600
+Subject: [PATCH 01/13] block: move bdev_read_only() into the header
+
+This is called for every write in the fast path, move it inline next
+to get_disk_ro() which is called internally.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/genhd.c         | 6 ------
+ include/linux/genhd.h | 5 +++++
+ 2 files changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/block/genhd.c b/block/genhd.c
+index 298ee78c1bdac6..8673a16ef97a8a 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -1356,9 +1356,3 @@ void set_disk_ro(struct gendisk *disk, bool read_only)
+ 	set_disk_ro_uevent(disk, read_only);
+ }
+ EXPORT_SYMBOL(set_disk_ro);
+-
+-int bdev_read_only(struct block_device *bdev)
+-{
+-	return bdev->bd_read_only || get_disk_ro(bdev->bd_disk);
+-}
+-EXPORT_SYMBOL(bdev_read_only);
+diff --git a/include/linux/genhd.h b/include/linux/genhd.h
+index 13b34177cc8502..e9bcb8d4d52ef6 100644
+--- a/include/linux/genhd.h
++++ b/include/linux/genhd.h
+@@ -232,6 +232,11 @@ static inline int get_disk_ro(struct gendisk *disk)
+ 		test_bit(GD_READ_ONLY, &disk->state);
+ }
+ 
++static inline int bdev_read_only(struct block_device *bdev)
++{
++	return bdev->bd_read_only || get_disk_ro(bdev->bd_disk);
++}
++
+ extern void disk_block_events(struct gendisk *disk);
+ extern void disk_unblock_events(struct gendisk *disk);
+ extern void disk_flush_events(struct gendisk *disk, unsigned int mask);
+
+From 65097792daa953b803eb4683e4acc4108820547d Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 6 Oct 2021 06:32:34 -0600
+Subject: [PATCH 02/13] block: cache inode size in bdev
+
+Reading the inode size brings in a new cacheline for IO submit, and
+it's in the hot path being checked for every single IO. When doing
+millions of IOs per core per second, this is noticeable overhead.
+
+Cache the i_size_write() in the bdev itself.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/genhd.c             | 6 ++++++
+ include/linux/blk_types.h | 1 +
+ include/linux/fs.h        | 4 ++++
+ include/linux/genhd.h     | 3 ++-
+ 4 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/block/genhd.c b/block/genhd.c
+index 8673a16ef97a8a..78f3dc1c8ec99c 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -1356,3 +1356,9 @@ void set_disk_ro(struct gendisk *disk, bool read_only)
+ 	set_disk_ro_uevent(disk, read_only);
+ }
+ EXPORT_SYMBOL(set_disk_ro);
++
++void __bdev_set_nr_sectors(struct inode *inode, loff_t i_size)
++{
++	I_BDEV(inode)->bd_nr_sectors = i_size >> 9;
++}
++EXPORT_SYMBOL(__bdev_set_nr_sectors);
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index 290f9061b29ac8..c4e581d00203c7 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -22,6 +22,7 @@ struct bio_crypt_ctx;
+ 
+ struct block_device {
+ 	sector_t		bd_start_sect;
++	sector_t		bd_nr_sectors;
+ 	struct disk_stats __percpu *bd_stats;
+ 	unsigned long		bd_stamp;
+ 	bool			bd_read_only;	/* read-only policy */
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 640574294216c0..0f67bdcfc6edcb 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -850,6 +850,8 @@ static inline loff_t i_size_read(const struct inode *inode)
+ #endif
+ }
+ 
++void __bdev_set_nr_sectors(struct inode *inode, loff_t i_size);
++
+ /*
+  * NOTE: unlike i_size_read(), i_size_write() does need locking around it
+  * (normally i_mutex), otherwise on 32bit/SMP an update of i_size_seqcount
+@@ -870,6 +872,8 @@ static inline void i_size_write(struct inode *inode, loff_t i_size)
+ #else
+ 	inode->i_size = i_size;
+ #endif
++	if (S_ISBLK(inode->i_mode))
++		__bdev_set_nr_sectors(inode, i_size);
+ }
+ 
+ static inline unsigned iminor(const struct inode *inode)
+diff --git a/include/linux/genhd.h b/include/linux/genhd.h
+index e9bcb8d4d52ef6..a6b2b06d7b2522 100644
+--- a/include/linux/genhd.h
++++ b/include/linux/genhd.h
+@@ -253,7 +253,7 @@ static inline sector_t get_start_sect(struct block_device *bdev)
+ 
+ static inline sector_t bdev_nr_sectors(struct block_device *bdev)
+ {
+-	return i_size_read(bdev->bd_inode) >> 9;
++	return bdev->bd_nr_sectors;
+ }
+ 
+ static inline sector_t get_capacity(struct gendisk *disk)
+@@ -305,6 +305,7 @@ extern void put_disk(struct gendisk *disk);
+ 	__disk;								\
+ })
+ struct gendisk *__blk_alloc_disk(int node);
++void __bdev_set_nr_sectors(struct inode *inode, loff_t i_size);
+ void blk_cleanup_disk(struct gendisk *disk);
+ 
+ int __register_blkdev(unsigned int major, const char *name,
+
+From 4ff32d62fc23e5f411b892525d5ed9c32c53dc99 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Fri, 8 Oct 2021 05:44:23 -0600
+Subject: [PATCH 03/13] sbitmap: add helper to clear a batch of tags
+
+sbitmap currently only supports clearing tags one-by-one, add a helper
+that allows the caller to pass in an array of tags to clear.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ include/linux/sbitmap.h | 11 +++++++++++
+ lib/sbitmap.c           | 44 ++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 52 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/sbitmap.h b/include/linux/sbitmap.h
+index 2713e689ad66df..77e402045cd0ba 100644
+--- a/include/linux/sbitmap.h
++++ b/include/linux/sbitmap.h
+@@ -515,6 +515,17 @@ void sbitmap_queue_min_shallow_depth(struct sbitmap_queue *sbq,
+ void sbitmap_queue_clear(struct sbitmap_queue *sbq, unsigned int nr,
+ 			 unsigned int cpu);
+ 
++/**
++ * sbitmap_queue_clear_batch() - Free a batch of allocated bits
++ * &struct sbitmap_queue.
++ * @sbq: Bitmap to free from.
++ * @offset: offset for each tag in array
++ * @tags: array of tags
++ * @nr_tags: number of tags in array
++ */
++void sbitmap_queue_clear_batch(struct sbitmap_queue *sbq, int offset,
++				int *tags, int nr_tags);
++
+ static inline int sbq_index_inc(int index)
+ {
+ 	return (index + 1) & (SBQ_WAIT_QUEUES - 1);
+diff --git a/lib/sbitmap.c b/lib/sbitmap.c
+index b25db9be938af2..9f296c286303fa 100644
+--- a/lib/sbitmap.c
++++ b/lib/sbitmap.c
+@@ -577,6 +577,46 @@ void sbitmap_queue_wake_up(struct sbitmap_queue *sbq)
+ }
+ EXPORT_SYMBOL_GPL(sbitmap_queue_wake_up);
+ 
++static inline void sbitmap_update_cpu_hint(struct sbitmap *sb, int cpu, int tag)
++{
++	if (likely(!sb->round_robin && tag < sb->depth))
++		*per_cpu_ptr(sb->alloc_hint, cpu) = tag;
++}
++
++void sbitmap_queue_clear_batch(struct sbitmap_queue *sbq, int offset,
++				int *tags, int nr_tags)
++{
++	struct sbitmap *sb = &sbq->sb;
++	unsigned long *addr = NULL;
++	unsigned long mask = 0;
++	int i;
++
++	smp_mb__before_atomic();
++	for (i = 0; i < nr_tags; i++) {
++		const int tag = tags[i] - offset;
++		unsigned long *this_addr;
++
++		/* since we're clearing a batch, skip the deferred map */
++		this_addr = &sb->map[SB_NR_TO_INDEX(sb, tag)].word;
++		if (!addr) {
++			addr = this_addr;
++		} else if (addr != this_addr) {
++			atomic_long_andnot(mask, (atomic_long_t *) addr);
++			mask = 0;
++			addr = this_addr;
++		}
++		mask |= (1UL << SB_NR_TO_BIT(sb, tag));
++	}
++
++	if (mask)
++		atomic_long_andnot(mask, (atomic_long_t *) addr);
++
++	smp_mb__after_atomic();
++	sbitmap_queue_wake_up(sbq);
++	sbitmap_update_cpu_hint(&sbq->sb, raw_smp_processor_id(),
++					tags[nr_tags - 1] - offset);
++}
++
+ void sbitmap_queue_clear(struct sbitmap_queue *sbq, unsigned int nr,
+ 			 unsigned int cpu)
+ {
+@@ -601,9 +641,7 @@ void sbitmap_queue_clear(struct sbitmap_queue *sbq, unsigned int nr,
+ 	 */
+ 	smp_mb__after_atomic();
+ 	sbitmap_queue_wake_up(sbq);
+-
+-	if (likely(!sbq->sb.round_robin && nr < sbq->sb.depth))
+-		*per_cpu_ptr(sbq->sb.alloc_hint, cpu) = nr;
++	sbitmap_update_cpu_hint(&sbq->sb, cpu, nr);
+ }
+ EXPORT_SYMBOL_GPL(sbitmap_queue_clear);
+ 
+
+From 6264f08269f147bf7314d822f08eafb541852e3b Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Fri, 8 Oct 2021 12:46:22 -0600
+Subject: [PATCH 04/13] sbitmap: test bit before calling test_and_set_bit()
+
+If we come across bits that are already set, then it's quicker to test
+that first and gate the test_and_set_bit() operation on the result of
+the bit test.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ lib/sbitmap.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/sbitmap.c b/lib/sbitmap.c
+index 9f296c286303fa..15f9d88a65bbdb 100644
+--- a/lib/sbitmap.c
++++ b/lib/sbitmap.c
+@@ -166,7 +166,7 @@ static int __sbitmap_get_word(unsigned long *word, unsigned long depth,
+ 			return -1;
+ 		}
+ 
+-		if (!test_and_set_bit_lock(nr, word))
++		if (!test_bit(nr, word) && !test_and_set_bit_lock(nr, word))
+ 			break;
+ 
+ 		hint = nr + 1;
+
+From 72103f2ea0c38dd5283cbe8d9859a8a10ff89bee Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Fri, 8 Oct 2021 05:56:09 -0600
+Subject: [PATCH 05/13] nvme: move the fast path nvme error and disposition
+ helpers
+
+These are called for every IO completion, move them inline in the nvme
+private header rather than have them be a function call out of the PCI
+part of the nvme drivers.
+
+We also need them for batched handling, hence the patch also serves as a
+preparation for that.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ drivers/nvme/host/core.c | 73 ++--------------------------------------
+ drivers/nvme/host/nvme.h | 72 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 74 insertions(+), 71 deletions(-)
+
+diff --git a/drivers/nvme/host/core.c b/drivers/nvme/host/core.c
+index dfd9dec0c1f605..6197b8863c3987 100644
+--- a/drivers/nvme/host/core.c
++++ b/drivers/nvme/host/core.c
+@@ -44,9 +44,10 @@ static unsigned char shutdown_timeout = 5;
+ module_param(shutdown_timeout, byte, 0644);
+ MODULE_PARM_DESC(shutdown_timeout, "timeout in seconds for controller shutdown");
+ 
+-static u8 nvme_max_retries = 5;
++u8 nvme_max_retries = 5;
+ module_param_named(max_retries, nvme_max_retries, byte, 0644);
+ MODULE_PARM_DESC(max_retries, "max number of retries a command may have");
++EXPORT_SYMBOL_GPL(nvme_max_retries);
+ 
+ static unsigned long default_ps_max_latency_us = 100000;
+ module_param(default_ps_max_latency_us, ulong, 0644);
+@@ -259,48 +260,6 @@ static void nvme_delete_ctrl_sync(struct nvme_ctrl *ctrl)
+ 	nvme_put_ctrl(ctrl);
+ }
+ 
+-static blk_status_t nvme_error_status(u16 status)
+-{
+-	switch (status & 0x7ff) {
+-	case NVME_SC_SUCCESS:
+-		return BLK_STS_OK;
+-	case NVME_SC_CAP_EXCEEDED:
+-		return BLK_STS_NOSPC;
+-	case NVME_SC_LBA_RANGE:
+-	case NVME_SC_CMD_INTERRUPTED:
+-	case NVME_SC_NS_NOT_READY:
+-		return BLK_STS_TARGET;
+-	case NVME_SC_BAD_ATTRIBUTES:
+-	case NVME_SC_ONCS_NOT_SUPPORTED:
+-	case NVME_SC_INVALID_OPCODE:
+-	case NVME_SC_INVALID_FIELD:
+-	case NVME_SC_INVALID_NS:
+-		return BLK_STS_NOTSUPP;
+-	case NVME_SC_WRITE_FAULT:
+-	case NVME_SC_READ_ERROR:
+-	case NVME_SC_UNWRITTEN_BLOCK:
+-	case NVME_SC_ACCESS_DENIED:
+-	case NVME_SC_READ_ONLY:
+-	case NVME_SC_COMPARE_FAILED:
+-		return BLK_STS_MEDIUM;
+-	case NVME_SC_GUARD_CHECK:
+-	case NVME_SC_APPTAG_CHECK:
+-	case NVME_SC_REFTAG_CHECK:
+-	case NVME_SC_INVALID_PI:
+-		return BLK_STS_PROTECTION;
+-	case NVME_SC_RESERVATION_CONFLICT:
+-		return BLK_STS_NEXUS;
+-	case NVME_SC_HOST_PATH_ERROR:
+-		return BLK_STS_TRANSPORT;
+-	case NVME_SC_ZONE_TOO_MANY_ACTIVE:
+-		return BLK_STS_ZONE_ACTIVE_RESOURCE;
+-	case NVME_SC_ZONE_TOO_MANY_OPEN:
+-		return BLK_STS_ZONE_OPEN_RESOURCE;
+-	default:
+-		return BLK_STS_IOERR;
+-	}
+-}
+-
+ static void nvme_retry_req(struct request *req)
+ {
+ 	unsigned long delay = 0;
+@@ -316,34 +275,6 @@ static void nvme_retry_req(struct request *req)
+ 	blk_mq_delay_kick_requeue_list(req->q, delay);
+ }
+ 
+-enum nvme_disposition {
+-	COMPLETE,
+-	RETRY,
+-	FAILOVER,
+-};
+-
+-static inline enum nvme_disposition nvme_decide_disposition(struct request *req)
+-{
+-	if (likely(nvme_req(req)->status == 0))
+-		return COMPLETE;
+-
+-	if (blk_noretry_request(req) ||
+-	    (nvme_req(req)->status & NVME_SC_DNR) ||
+-	    nvme_req(req)->retries >= nvme_max_retries)
+-		return COMPLETE;
+-
+-	if (req->cmd_flags & REQ_NVME_MPATH) {
+-		if (nvme_is_path_error(nvme_req(req)->status) ||
+-		    blk_queue_dying(req->q))
+-			return FAILOVER;
+-	} else {
+-		if (blk_queue_dying(req->q))
+-			return COMPLETE;
+-	}
+-
+-	return RETRY;
+-}
+-
+ static inline void nvme_end_req(struct request *req)
+ {
+ 	blk_status_t status = nvme_error_status(nvme_req(req)->status);
+diff --git a/drivers/nvme/host/nvme.h b/drivers/nvme/host/nvme.h
+index 5cd1fa3b8464db..77a746081c6596 100644
+--- a/drivers/nvme/host/nvme.h
++++ b/drivers/nvme/host/nvme.h
+@@ -874,4 +874,76 @@ struct nvme_ctrl *nvme_ctrl_from_file(struct file *file);
+ struct nvme_ns *nvme_find_get_ns(struct nvme_ctrl *ctrl, unsigned nsid);
+ void nvme_put_ns(struct nvme_ns *ns);
+ 
++static inline blk_status_t nvme_error_status(u16 status)
++{
++	switch (status & 0x7ff) {
++	case NVME_SC_SUCCESS:
++		return BLK_STS_OK;
++	case NVME_SC_CAP_EXCEEDED:
++		return BLK_STS_NOSPC;
++	case NVME_SC_LBA_RANGE:
++	case NVME_SC_CMD_INTERRUPTED:
++	case NVME_SC_NS_NOT_READY:
++		return BLK_STS_TARGET;
++	case NVME_SC_BAD_ATTRIBUTES:
++	case NVME_SC_ONCS_NOT_SUPPORTED:
++	case NVME_SC_INVALID_OPCODE:
++	case NVME_SC_INVALID_FIELD:
++	case NVME_SC_INVALID_NS:
++		return BLK_STS_NOTSUPP;
++	case NVME_SC_WRITE_FAULT:
++	case NVME_SC_READ_ERROR:
++	case NVME_SC_UNWRITTEN_BLOCK:
++	case NVME_SC_ACCESS_DENIED:
++	case NVME_SC_READ_ONLY:
++	case NVME_SC_COMPARE_FAILED:
++		return BLK_STS_MEDIUM;
++	case NVME_SC_GUARD_CHECK:
++	case NVME_SC_APPTAG_CHECK:
++	case NVME_SC_REFTAG_CHECK:
++	case NVME_SC_INVALID_PI:
++		return BLK_STS_PROTECTION;
++	case NVME_SC_RESERVATION_CONFLICT:
++		return BLK_STS_NEXUS;
++	case NVME_SC_HOST_PATH_ERROR:
++		return BLK_STS_TRANSPORT;
++	case NVME_SC_ZONE_TOO_MANY_ACTIVE:
++		return BLK_STS_ZONE_ACTIVE_RESOURCE;
++	case NVME_SC_ZONE_TOO_MANY_OPEN:
++		return BLK_STS_ZONE_OPEN_RESOURCE;
++	default:
++		return BLK_STS_IOERR;
++	}
++}
++
++enum nvme_disposition {
++	COMPLETE,
++	RETRY,
++	FAILOVER,
++};
++
++extern u8 nvme_max_retries;
++
++static inline enum nvme_disposition nvme_decide_disposition(struct request *req)
++{
++	if (likely(nvme_req(req)->status == 0))
++		return COMPLETE;
++
++	if (blk_noretry_request(req) ||
++	    (nvme_req(req)->status & NVME_SC_DNR) ||
++	    nvme_req(req)->retries >= nvme_max_retries)
++		return COMPLETE;
++
++	if (req->cmd_flags & REQ_NVME_MPATH) {
++		if (nvme_is_path_error(nvme_req(req)->status) ||
++		    blk_queue_dying(req->q))
++			return FAILOVER;
++	} else {
++		if (blk_queue_dying(req->q))
++			return COMPLETE;
++	}
++
++	return RETRY;
++}
++
+ #endif /* _NVME_H */
+
+From b5611ee786db26503d63deec90fe223ac3dbd34e Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Sat, 9 Oct 2021 13:02:23 -0600
+Subject: [PATCH 06/13] sbitmap: add __sbitmap_queue_get_batch()
+
+The block layer tag allocation batching still calls into sbitmap to get
+each tag, but we can improve on that. Add __sbitmap_queue_get_batch(),
+which returns a mask of tags all at once, along with an offset for
+those tags.
+
+An example return would be 0xff, where bits 0..7 are set, with
+tag_offset == 128. The valid tags in this case would be 128..135.
+
+A batch is specific to an individual sbitmap_map, hence it cannot be
+larger than that. The requested number of tags is automatically reduced
+to the max that can be satisfied with a single map.
+
+On failure, 0 is returned. Caller should fall back to single tag
+allocation at that point/
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ include/linux/sbitmap.h | 13 +++++++++++
+ lib/sbitmap.c           | 51 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 64 insertions(+)
+
+diff --git a/include/linux/sbitmap.h b/include/linux/sbitmap.h
+index 77e402045cd0ba..4a6ff274335a2e 100644
+--- a/include/linux/sbitmap.h
++++ b/include/linux/sbitmap.h
+@@ -426,6 +426,19 @@ void sbitmap_queue_resize(struct sbitmap_queue *sbq, unsigned int depth);
+  */
+ int __sbitmap_queue_get(struct sbitmap_queue *sbq);
+ 
++/**
++ * __sbitmap_queue_get_batch() - Try to allocate a batch of free bits
++ * @sbq: Bitmap queue to allocate from.
++ * @nr_tags: number of tags requested
++ * @offset: offset to add to returned bits
++ *
++ * Return: Mask of allocated tags, 0 if none are found. Each tag allocated is
++ * a bit in the mask returned, and the caller must add @offset to the value to
++ * get the absolute tag value.
++ */
++unsigned long __sbitmap_queue_get_batch(struct sbitmap_queue *sbq, int nr_tags,
++					unsigned int *offset);
++
+ /**
+  * __sbitmap_queue_get_shallow() - Try to allocate a free bit from a &struct
+  * sbitmap_queue, limiting the depth used from each word, with preemption
+diff --git a/lib/sbitmap.c b/lib/sbitmap.c
+index 15f9d88a65bbdb..11b244a8d00fa8 100644
+--- a/lib/sbitmap.c
++++ b/lib/sbitmap.c
+@@ -489,6 +489,57 @@ int __sbitmap_queue_get(struct sbitmap_queue *sbq)
+ }
+ EXPORT_SYMBOL_GPL(__sbitmap_queue_get);
+ 
++unsigned long __sbitmap_queue_get_batch(struct sbitmap_queue *sbq, int nr_tags,
++					unsigned int *offset)
++{
++	struct sbitmap *sb = &sbq->sb;
++	unsigned int hint, depth;
++	unsigned long index, nr;
++	int i;
++
++	if (unlikely(sb->round_robin))
++		return 0;
++
++	depth = READ_ONCE(sb->depth);
++	hint = update_alloc_hint_before_get(sb, depth);
++
++	index = SB_NR_TO_INDEX(sb, hint);
++
++	for (i = 0; i < sb->map_nr; i++) {
++		struct sbitmap_word *map = &sb->map[index];
++		unsigned long get_mask;
++
++		sbitmap_deferred_clear(map);
++		if (map->word == (1UL << (map->depth - 1)) - 1)
++			continue;
++
++		nr = find_first_zero_bit(&map->word, map->depth);
++		if (nr + nr_tags <= map->depth) {
++			atomic_long_t *ptr = (atomic_long_t *) &map->word;
++			int map_tags = min_t(int, nr_tags, map->depth);
++			unsigned long val, ret;
++
++			get_mask = ((1UL << map_tags) - 1) << nr;
++			do {
++				val = READ_ONCE(map->word);
++				ret = atomic_long_cmpxchg(ptr, val, get_mask | val);
++			} while (ret != val);
++			get_mask = (get_mask & ~ret) >> nr;
++			if (get_mask) {
++				*offset = nr + (index << sb->shift);
++				update_alloc_hint_after_get(sb, depth, hint,
++							*offset + map_tags - 1);
++				return get_mask;
++			}
++		}
++		/* Jump to next index. */
++		if (++index >= sb->map_nr)
++			index = 0;
++	}
++
++	return 0;
++}
++
+ int __sbitmap_queue_get_shallow(struct sbitmap_queue *sbq,
+ 				unsigned int shallow_depth)
+ {
+
+From f80e6693978b93ff9841d48f1fd1df64756568cb Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Sat, 9 Oct 2021 13:25:38 +0100
+Subject: [PATCH 07/13] block: cache bdev in struct file for raw bdev IO
+
+bdev = &BDEV_I(file->f_mapping->host)->bdev
+
+Getting struct block_device from a file requires 2 memory dereferences
+as illustrated above, that takes a toll on performance, so cache it in
+yet unused file->private_data. That gives a noticeable peak performance
+improvement.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/cfc66d9946422fa1778504f976621c91be2befb5.1633781740.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c | 34 ++++++++++++++++++----------------
+ 1 file changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 9ef4f1fc2cb018..7621dc92d34893 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -203,11 +203,16 @@ blkdev_get_block(struct inode *inode, sector_t iblock,
+ 	return 0;
+ }
+ 
+-static struct inode *bdev_file_inode(struct file *file)
++static inline struct inode *bdev_file_inode(struct file *file)
+ {
+ 	return file->f_mapping->host;
+ }
+ 
++static inline struct block_device *blkdev_get_bdev(struct file *file)
++{
++	return file->private_data;
++}
++
+ static unsigned int dio_bio_write_op(struct kiocb *iocb)
+ {
+ 	unsigned int op = REQ_OP_WRITE | REQ_SYNC | REQ_IDLE;
+@@ -232,8 +237,7 @@ static ssize_t
+ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
+ 		unsigned int nr_pages)
+ {
+-	struct file *file = iocb->ki_filp;
+-	struct block_device *bdev = I_BDEV(bdev_file_inode(file));
++	struct block_device *bdev = blkdev_get_bdev(iocb->ki_filp);
+ 	struct bio_vec inline_vecs[DIO_INLINE_BIO_VECS], *vecs;
+ 	loff_t pos = iocb->ki_pos;
+ 	bool should_dirty = false;
+@@ -321,7 +325,7 @@ static struct bio_set blkdev_dio_pool;
+ 
+ static int blkdev_iopoll(struct kiocb *kiocb, bool wait)
+ {
+-	struct block_device *bdev = I_BDEV(kiocb->ki_filp->f_mapping->host);
++	struct block_device *bdev = blkdev_get_bdev(kiocb->ki_filp);
+ 	struct request_queue *q = bdev_get_queue(bdev);
+ 
+ 	return blk_poll(q, READ_ONCE(kiocb->ki_cookie), wait);
+@@ -369,9 +373,7 @@ static void blkdev_bio_end_io(struct bio *bio)
+ static ssize_t __blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
+ 		unsigned int nr_pages)
+ {
+-	struct file *file = iocb->ki_filp;
+-	struct inode *inode = bdev_file_inode(file);
+-	struct block_device *bdev = I_BDEV(inode);
++	struct block_device *bdev = blkdev_get_bdev(iocb->ki_filp);
+ 	struct blk_plug plug;
+ 	struct blkdev_dio *dio;
+ 	struct bio *bio;
+@@ -688,8 +690,7 @@ static loff_t block_llseek(struct file *file, loff_t offset, int whence)
+ 	
+ int blkdev_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
+ {
+-	struct inode *bd_inode = bdev_file_inode(filp);
+-	struct block_device *bdev = I_BDEV(bd_inode);
++	struct block_device *bdev = blkdev_get_bdev(filp);
+ 	int error;
+ 	
+ 	error = file_write_and_wait_range(filp, start, end);
+@@ -1512,6 +1513,8 @@ static int blkdev_open(struct inode * inode, struct file * filp)
+ 	bdev = blkdev_get_by_dev(inode->i_rdev, filp->f_mode, filp);
+ 	if (IS_ERR(bdev))
+ 		return PTR_ERR(bdev);
++
++	filp->private_data = bdev;
+ 	filp->f_mapping = bdev->bd_inode->i_mapping;
+ 	filp->f_wb_err = filemap_sample_wb_err(filp->f_mapping);
+ 	return 0;
+@@ -1582,7 +1585,7 @@ EXPORT_SYMBOL(blkdev_put);
+ 
+ static int blkdev_close(struct inode * inode, struct file * filp)
+ {
+-	struct block_device *bdev = I_BDEV(bdev_file_inode(filp));
++	struct block_device *bdev = blkdev_get_bdev(filp);
+ 	blkdev_put(bdev, filp->f_mode);
+ 	return 0;
+ }
+@@ -1613,14 +1616,14 @@ static long block_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+  */
+ static ssize_t blkdev_write_iter(struct kiocb *iocb, struct iov_iter *from)
+ {
+-	struct file *file = iocb->ki_filp;
+-	struct inode *bd_inode = bdev_file_inode(file);
++	struct block_device *bdev = blkdev_get_bdev(iocb->ki_filp);
++	struct inode *bd_inode = bdev->bd_inode;
+ 	loff_t size = i_size_read(bd_inode);
+ 	struct blk_plug plug;
+ 	size_t shorted = 0;
+ 	ssize_t ret;
+ 
+-	if (bdev_read_only(I_BDEV(bd_inode)))
++	if (bdev_read_only(bdev))
+ 		return -EPERM;
+ 
+ 	if (IS_SWAPFILE(bd_inode) && !is_hibernate_resume_dev(bd_inode->i_rdev))
+@@ -1652,9 +1655,8 @@ static ssize_t blkdev_write_iter(struct kiocb *iocb, struct iov_iter *from)
+ 
+ static ssize_t blkdev_read_iter(struct kiocb *iocb, struct iov_iter *to)
+ {
+-	struct file *file = iocb->ki_filp;
+-	struct inode *bd_inode = bdev_file_inode(file);
+-	loff_t size = i_size_read(bd_inode);
++	struct block_device *bdev = blkdev_get_bdev(iocb->ki_filp);
++	loff_t size = (loff_t)bdev->bd_nr_sectors << SECTOR_SHIFT;
+ 	loff_t pos = iocb->ki_pos;
+ 	size_t shorted = 0;
+ 	ssize_t ret;
+
+From cf80f53169101abfe575363153f3c11d114edb95 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Sat, 9 Oct 2021 13:25:39 +0100
+Subject: [PATCH 08/13] block: inline BDEV_I and friends
+
+I_BDEV and BDEV_I are very simple, they worth a single arith instruction
+or can even be almost completely compiled out. Inline them.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/7c112aa98c9268d3d488cbee8b2832dc707812f6.1633781740.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c         | 16 ----------------
+ include/linux/blkdev.h | 16 +++++++++++++++-
+ 2 files changed, 15 insertions(+), 17 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 7621dc92d34893..6fafb1bc84bd42 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -36,24 +36,8 @@
+ #include <linux/suspend.h>
+ #include "internal.h"
+ 
+-struct bdev_inode {
+-	struct block_device bdev;
+-	struct inode vfs_inode;
+-};
+-
+ static const struct address_space_operations def_blk_aops;
+ 
+-static inline struct bdev_inode *BDEV_I(struct inode *inode)
+-{
+-	return container_of(inode, struct bdev_inode, vfs_inode);
+-}
+-
+-struct block_device *I_BDEV(struct inode *inode)
+-{
+-	return &BDEV_I(inode)->bdev;
+-}
+-EXPORT_SYMBOL(I_BDEV);
+-
+ static void bdev_write_inode(struct block_device *bdev)
+ {
+ 	struct inode *inode = bdev->bd_inode;
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index d3afea47ade676..46f87944b37972 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -1983,12 +1983,26 @@ void blkdev_put_no_open(struct block_device *bdev);
+ 
+ struct block_device *bdev_alloc(struct gendisk *disk, u8 partno);
+ void bdev_add(struct block_device *bdev, dev_t dev);
+-struct block_device *I_BDEV(struct inode *inode);
+ struct block_device *bdgrab(struct block_device *bdev);
+ void bdput(struct block_device *);
+ int truncate_bdev_range(struct block_device *bdev, fmode_t mode, loff_t lstart,
+ 		loff_t lend);
+ 
++struct bdev_inode {
++	struct block_device bdev;
++	struct inode vfs_inode;
++};
++
++static inline struct bdev_inode *BDEV_I(struct inode *inode)
++{
++	return container_of(inode, struct bdev_inode, vfs_inode);
++}
++
++static inline struct block_device *I_BDEV(struct inode *inode)
++{
++	return &BDEV_I(inode)->bdev;
++}
++
+ #ifdef CONFIG_BLOCK
+ void invalidate_bdev(struct block_device *bdev);
+ int sync_blockdev(struct block_device *bdev);
+
+From a7967d83fcede06f8762235ca7073f772547e230 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Sat, 9 Oct 2021 13:25:41 +0100
+Subject: [PATCH 09/13] block: inline hot paths of blk_account_io_*()
+
+Extract hot paths of __blk_account_io_start() and
+__blk_account_io_done() into inline functions, so we don't always pay
+for function calls.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/b0662a636bd4cc7b4f84c9d0a41efa46a688ef13.1633781740.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-core.c | 30 +++++++++---------------------
+ block/blk.h      | 24 +++++++++++++++++++++---
+ 2 files changed, 30 insertions(+), 24 deletions(-)
+
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 4f8449b29b2146..06d4a7b07da658 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -1181,8 +1181,7 @@ blk_status_t blk_insert_cloned_request(struct request_queue *q, struct request *
+ 	if (blk_crypto_insert_cloned_request(rq))
+ 		return BLK_STS_IOERR;
+ 
+-	if (blk_queue_io_stat(q))
+-		blk_account_io_start(rq);
++	blk_account_io_start(rq);
+ 
+ 	/*
+ 	 * Since we have a scheduler attached on the top device,
+@@ -1261,30 +1260,19 @@ static void blk_account_io_completion(struct request *req, unsigned int bytes)
+ 	}
+ }
+ 
+-void blk_account_io_done(struct request *req, u64 now)
++void __blk_account_io_done(struct request *req, u64 now)
+ {
+-	/*
+-	 * Account IO completion.  flush_rq isn't accounted as a
+-	 * normal IO on queueing nor completion.  Accounting the
+-	 * containing request is enough.
+-	 */
+-	if (req->part && blk_do_io_stat(req) &&
+-	    !(req->rq_flags & RQF_FLUSH_SEQ)) {
+-		const int sgrp = op_stat_group(req_op(req));
++	const int sgrp = op_stat_group(req_op(req));
+ 
+-		part_stat_lock();
+-		update_io_ticks(req->part, jiffies, true);
+-		part_stat_inc(req->part, ios[sgrp]);
+-		part_stat_add(req->part, nsecs[sgrp], now - req->start_time_ns);
+-		part_stat_unlock();
+-	}
++	part_stat_lock();
++	update_io_ticks(req->part, jiffies, true);
++	part_stat_inc(req->part, ios[sgrp]);
++	part_stat_add(req->part, nsecs[sgrp], now - req->start_time_ns);
++	part_stat_unlock();
+ }
+ 
+-void blk_account_io_start(struct request *rq)
++void __blk_account_io_start(struct request *rq)
+ {
+-	if (!blk_do_io_stat(rq))
+-		return;
+-
+ 	/* passthrough requests can hold bios that do not have ->bi_bdev set */
+ 	if (rq->bio && rq->bio->bi_bdev)
+ 		rq->part = rq->bio->bi_bdev;
+diff --git a/block/blk.h b/block/blk.h
+index cb01429c162c6f..7ce659624d7fde 100644
+--- a/block/blk.h
++++ b/block/blk.h
+@@ -178,8 +178,8 @@ bool blk_attempt_plug_merge(struct request_queue *q, struct bio *bio,
+ bool blk_bio_list_merge(struct request_queue *q, struct list_head *list,
+ 			struct bio *bio, unsigned int nr_segs);
+ 
+-void blk_account_io_start(struct request *req);
+-void blk_account_io_done(struct request *req, u64 now);
++void __blk_account_io_start(struct request *req);
++void __blk_account_io_done(struct request *req, u64 now);
+ 
+ /*
+  * Internal elevator interface
+@@ -237,7 +237,25 @@ int blk_dev_init(void);
+  */
+ static inline bool blk_do_io_stat(struct request *rq)
+ {
+-	return rq->rq_disk && (rq->rq_flags & RQF_IO_STAT);
++	return (rq->rq_flags & RQF_IO_STAT) && rq->rq_disk;
++}
++
++static inline void blk_account_io_done(struct request *req, u64 now)
++{
++	/*
++	 * Account IO completion.  flush_rq isn't accounted as a
++	 * normal IO on queueing nor completion.  Accounting the
++	 * containing request is enough.
++	 */
++	if (blk_do_io_stat(req) && req->part &&
++	    !(req->rq_flags & RQF_FLUSH_SEQ))
++		__blk_account_io_done(req, now);
++}
++
++static inline void blk_account_io_start(struct request *req)
++{
++	if (blk_do_io_stat(req))
++		__blk_account_io_start(req);
+ }
+ 
+ static inline void req_set_nomerge(struct request_queue *q, struct request *req)
+
+From affa76fcfa75d1d69475a3c8732b7a7180e5ef27 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Sat, 9 Oct 2021 13:25:42 +0100
+Subject: [PATCH 10/13] blk-mq: inline hot part of __blk_mq_sched_restart
+
+Extract a fast check out of __block_mq_sched_restart() and inline it for
+performance reasons.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/894abaa0998e5999f2fe18f271e5efdfc2c32bd2.1633781740.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-mq-sched.c | 4 +---
+ block/blk-mq-sched.h | 8 +++++++-
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/block/blk-mq-sched.c b/block/blk-mq-sched.c
+index 0f006cabfd9148..f2a03f3f9a6f03 100644
+--- a/block/blk-mq-sched.c
++++ b/block/blk-mq-sched.c
+@@ -57,10 +57,8 @@ void blk_mq_sched_mark_restart_hctx(struct blk_mq_hw_ctx *hctx)
+ }
+ EXPORT_SYMBOL_GPL(blk_mq_sched_mark_restart_hctx);
+ 
+-void blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx)
++void __blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx)
+ {
+-	if (!test_bit(BLK_MQ_S_SCHED_RESTART, &hctx->state))
+-		return;
+ 	clear_bit(BLK_MQ_S_SCHED_RESTART, &hctx->state);
+ 
+ 	/*
+diff --git a/block/blk-mq-sched.h b/block/blk-mq-sched.h
+index 5246ae0407047e..8238ed6cbfbfd4 100644
+--- a/block/blk-mq-sched.h
++++ b/block/blk-mq-sched.h
+@@ -16,7 +16,7 @@ bool __blk_mq_sched_bio_merge(struct request_queue *q, struct bio *bio,
+ bool blk_mq_sched_try_insert_merge(struct request_queue *q, struct request *rq,
+ 				   struct list_head *free);
+ void blk_mq_sched_mark_restart_hctx(struct blk_mq_hw_ctx *hctx);
+-void blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx);
++void __blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx);
+ 
+ void blk_mq_sched_insert_request(struct request *rq, bool at_head,
+ 				 bool run_queue, bool async);
+@@ -30,6 +30,12 @@ int blk_mq_init_sched(struct request_queue *q, struct elevator_type *e);
+ void blk_mq_exit_sched(struct request_queue *q, struct elevator_queue *e);
+ void blk_mq_sched_free_requests(struct request_queue *q);
+ 
++static inline void blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx)
++{
++	if (test_bit(BLK_MQ_S_SCHED_RESTART, &hctx->state))
++		__blk_mq_sched_restart(hctx);
++}
++
+ static inline bool
+ blk_mq_sched_bio_merge(struct request_queue *q, struct bio *bio,
+ 		unsigned int nr_segs)
+
+From 380a9929db1e63d96067f636ed1b34a98467fec4 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Sat, 9 Oct 2021 13:25:43 +0100
+Subject: [PATCH 11/13] block: convert ->bd_inode to container_of()
+
+We don't need bdev->bd_inode as we know the layout, they are stored in
+the same structure and so offset_of is enough. Convert extra
+dereferencing to offseting starting from the block layer.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/41af3da80d59b705eb2260f7f469955ad68a96d2.1633781740.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c         | 10 ++++++----
+ include/linux/blkdev.h | 15 ++++++++++-----
+ 2 files changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 6fafb1bc84bd42..f5ed062430fe00 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -187,14 +187,16 @@ blkdev_get_block(struct inode *inode, sector_t iblock,
+ 	return 0;
+ }
+ 
+-static inline struct inode *bdev_file_inode(struct file *file)
++static inline struct block_device *blkdev_get_bdev(struct file *file)
+ {
+-	return file->f_mapping->host;
++	return file->private_data;
+ }
+ 
+-static inline struct block_device *blkdev_get_bdev(struct file *file)
++static inline struct inode *bdev_file_inode(struct file *file)
+ {
+-	return file->private_data;
++	struct block_device *bdev = blkdev_get_bdev(file);
++
++	return bdev_get_inode(bdev);
+ }
+ 
+ static unsigned int dio_bio_write_op(struct kiocb *iocb)
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index 46f87944b37972..1f79d2cd4effb9 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -1621,11 +1621,6 @@ static inline unsigned int blksize_bits(unsigned int size)
+ 	return bits;
+ }
+ 
+-static inline unsigned int block_size(struct block_device *bdev)
+-{
+-	return 1 << bdev->bd_inode->i_blkbits;
+-}
+-
+ int kblockd_schedule_work(struct work_struct *work);
+ int kblockd_mod_delayed_work_on(int cpu, struct delayed_work *dwork, unsigned long delay);
+ 
+@@ -2003,6 +1998,16 @@ static inline struct block_device *I_BDEV(struct inode *inode)
+ 	return &BDEV_I(inode)->bdev;
+ }
+ 
++static inline struct inode *bdev_get_inode(struct block_device *bdev)
++{
++	return &container_of(bdev, struct bdev_inode, bdev)->vfs_inode;
++}
++
++static inline unsigned int block_size(struct block_device *bdev)
++{
++	return 1 << bdev_get_inode(bdev)->i_blkbits;
++}
++
+ #ifdef CONFIG_BLOCK
+ void invalidate_bdev(struct block_device *bdev);
+ int sync_blockdev(struct block_device *bdev);
+
+From 5e49de6f69dc91411c8d0a8b644e6a9894816bd2 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Sat, 9 Oct 2021 14:52:47 -0600
+Subject: [PATCH 12/13] nvme: don't memset() the normal read/write command
+
+This memset in the fast path costs a lot of cycles on my setup. Here's a
+top-of-profile of doing ~6.7M IOPS:
+
++    5.90%  io_uring  [nvme]            [k] nvme_queue_rq
++    5.32%  io_uring  [nvme_core]       [k] nvme_setup_cmd
++    5.17%  io_uring  [kernel.vmlinux]  [k] io_submit_sqes
++    4.97%  io_uring  [kernel.vmlinux]  [k] blkdev_direct_IO
+
+and a perf diff with this patch:
+
+     0.92%     +4.40%  [nvme_core]       [k] nvme_setup_cmd
+
+reducing it from 5.3% to only 0.9%. This takes it from the 2nd most
+cycle consumer to something that's mostly irrelevant.
+
+Retain the full clear for the other commands to avoid doing any audits
+there, and just clear the fields in the rw command manually that we
+don't already fill.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ drivers/nvme/host/core.c | 30 +++++++++++++++++++++++++-----
+ 1 file changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/nvme/host/core.c b/drivers/nvme/host/core.c
+index 6197b8863c3987..801eda5b1cbdc8 100644
+--- a/drivers/nvme/host/core.c
++++ b/drivers/nvme/host/core.c
+@@ -855,9 +855,16 @@ static inline blk_status_t nvme_setup_rw(struct nvme_ns *ns,
+ 		dsmgmt |= NVME_RW_DSM_FREQ_PREFETCH;
+ 
+ 	cmnd->rw.opcode = op;
++	cmnd->rw.flags = 0;
++	cmnd->rw.command_id = 0;
+ 	cmnd->rw.nsid = cpu_to_le32(ns->head->ns_id);
++	cmnd->rw.rsvd2 = 0;
++	cmnd->rw.metadata = 0;
+ 	cmnd->rw.slba = cpu_to_le64(nvme_sect_to_lba(ns, blk_rq_pos(req)));
+ 	cmnd->rw.length = cpu_to_le16((blk_rq_bytes(req) >> ns->lba_shift) - 1);
++	cmnd->rw.reftag = 0;
++	cmnd->rw.apptag = 0;
++	cmnd->rw.appmask = 0;
+ 
+ 	if (req_op(req) == REQ_OP_WRITE && ctrl->nr_streams)
+ 		nvme_assign_write_stream(ctrl, req, &control, &dsmgmt);
+@@ -909,16 +916,19 @@ void nvme_cleanup_cmd(struct request *req)
+ }
+ EXPORT_SYMBOL_GPL(nvme_cleanup_cmd);
+ 
+-blk_status_t nvme_setup_cmd(struct nvme_ns *ns, struct request *req)
++static void nvme_clear_cmd(struct request *req)
+ {
+-	struct nvme_command *cmd = nvme_req(req)->cmd;
+-	struct nvme_ctrl *ctrl = nvme_req(req)->ctrl;
+-	blk_status_t ret = BLK_STS_OK;
+-
+ 	if (!(req->rq_flags & RQF_DONTPREP)) {
+ 		nvme_clear_nvme_request(req);
+-		memset(cmd, 0, sizeof(*cmd));
++		memset(nvme_req(req)->cmd, 0, sizeof(struct nvme_command));
+ 	}
++}
++
++blk_status_t nvme_setup_cmd(struct nvme_ns *ns, struct request *req)
++{
++	struct nvme_command *cmd = nvme_req(req)->cmd;
++	struct nvme_ctrl *ctrl = nvme_req(req)->ctrl;
++	blk_status_t ret = BLK_STS_OK;
+ 
+ 	switch (req_op(req)) {
+ 	case REQ_OP_DRV_IN:
+@@ -925,34 +935,44 @@ blk_status_t nvme_setup_cmd(struct nvme_ns *ns, struct request *req)
+ 		/* these are setup prior to execution in nvme_init_request() */
+ 		break;
+ 	case REQ_OP_FLUSH:
++		nvme_clear_cmd(req);
+ 		nvme_setup_flush(ns, cmd);
+ 		break;
+ 	case REQ_OP_ZONE_RESET_ALL:
+ 	case REQ_OP_ZONE_RESET:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_zone_mgmt_send(ns, req, cmd, NVME_ZONE_RESET);
+ 		break;
+ 	case REQ_OP_ZONE_OPEN:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_zone_mgmt_send(ns, req, cmd, NVME_ZONE_OPEN);
+ 		break;
+ 	case REQ_OP_ZONE_CLOSE:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_zone_mgmt_send(ns, req, cmd, NVME_ZONE_CLOSE);
+ 		break;
+ 	case REQ_OP_ZONE_FINISH:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_zone_mgmt_send(ns, req, cmd, NVME_ZONE_FINISH);
+ 		break;
+ 	case REQ_OP_WRITE_ZEROES:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_write_zeroes(ns, req, cmd);
+ 		break;
+ 	case REQ_OP_DISCARD:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_discard(ns, req, cmd);
+ 		break;
+ 	case REQ_OP_READ:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_rw(ns, req, cmd, nvme_cmd_read);
+ 		break;
+ 	case REQ_OP_WRITE:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_rw(ns, req, cmd, nvme_cmd_write);
+ 		break;
+ 	case REQ_OP_ZONE_APPEND:
++		nvme_clear_cmd(req);
+ 		ret = nvme_setup_rw(ns, req, cmd, nvme_cmd_zone_append);
+ 		break;
+ 	default:
+
+From bac1b17e6b4fc615c1bda4c66eda68b0f4c8ce45 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Sun, 10 Oct 2021 05:30:16 -0600
+Subject: [PATCH 13/13] block: remove plug based merging
+
+It's expensive to browse the whole plug list for merge opportunities at
+the IOPS rates that modern storage can do. For sequential IO, the one-hit
+cached merge should suffice on fast drives, and for rotational storage the
+IO scheduler will do a more exhaustive lookup based merge anyway.
+
+Just remove the plug based O(N) traversal merging.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-merge.c | 56 -----------------------------------------------
+ block/blk-mq.c    |  4 ----
+ block/blk.h       |  2 --
+ 3 files changed, 62 deletions(-)
+
+diff --git a/block/blk-merge.c b/block/blk-merge.c
+index a11b3b53717efe..64a188a20c9ca3 100644
+--- a/block/blk-merge.c
++++ b/block/blk-merge.c
+@@ -1032,62 +1032,6 @@ static enum bio_merge_status blk_attempt_bio_merge(struct request_queue *q,
+ 	return BIO_MERGE_FAILED;
+ }
+ 
+-/**
+- * blk_attempt_plug_merge - try to merge with %current's plugged list
+- * @q: request_queue new bio is being queued at
+- * @bio: new bio being queued
+- * @nr_segs: number of segments in @bio
+- * @same_queue_rq: pointer to &struct request that gets filled in when
+- * another request associated with @q is found on the plug list
+- * (optional, may be %NULL)
+- *
+- * Determine whether @bio being queued on @q can be merged with a request
+- * on %current's plugged list.  Returns %true if merge was successful,
+- * otherwise %false.
+- *
+- * Plugging coalesces IOs from the same issuer for the same purpose without
+- * going through @q->queue_lock.  As such it's more of an issuing mechanism
+- * than scheduling, and the request, while may have elvpriv data, is not
+- * added on the elevator at this point.  In addition, we don't have
+- * reliable access to the elevator outside queue lock.  Only check basic
+- * merging parameters without querying the elevator.
+- *
+- * Caller must ensure !blk_queue_nomerges(q) beforehand.
+- */
+-bool blk_attempt_plug_merge(struct request_queue *q, struct bio *bio,
+-		unsigned int nr_segs, struct request **same_queue_rq)
+-{
+-	struct blk_plug *plug;
+-	struct request *rq;
+-	struct list_head *plug_list;
+-
+-	plug = blk_mq_plug(q, bio);
+-	if (!plug)
+-		return false;
+-
+-	plug_list = &plug->mq_list;
+-
+-	list_for_each_entry_reverse(rq, plug_list, queuelist) {
+-		if (rq->q == q && same_queue_rq) {
+-			/*
+-			 * Only blk-mq multiple hardware queues case checks the
+-			 * rq in the same queue, there should be only one such
+-			 * rq in a queue
+-			 **/
+-			*same_queue_rq = rq;
+-		}
+-
+-		if (rq->q != q)
+-			continue;
+-
+-		if (blk_attempt_bio_merge(q, rq, bio, nr_segs, false) ==
+-		    BIO_MERGE_OK)
+-			return true;
+-	}
+-
+-	return false;
+-}
+-
+ /*
+  * Iterate list of requests and see if we can merge this bio with any
+  * of them.
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index 9d4fdc2be88a5e..5c28530b54f84f 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -2172,10 +2172,6 @@ blk_qc_t blk_mq_submit_bio(struct bio *bio)
+ 	if (!bio_integrity_prep(bio))
+ 		goto queue_exit;
+ 
+-	if (!is_flush_fua && !blk_queue_nomerges(q) &&
+-	    blk_attempt_plug_merge(q, bio, nr_segs, &same_queue_rq))
+-		goto queue_exit;
+-
+ 	if (blk_mq_sched_bio_merge(q, bio, nr_segs))
+ 		goto queue_exit;
+ 
+diff --git a/block/blk.h b/block/blk.h
+index 7ce659624d7fde..d87792becee180 100644
+--- a/block/blk.h
++++ b/block/blk.h
+@@ -173,8 +173,6 @@ static inline void blk_integrity_del(struct gendisk *disk)
+ unsigned long blk_rq_timeout(unsigned long timeout);
+ void blk_add_timer(struct request *req);
+ 
+-bool blk_attempt_plug_merge(struct request_queue *q, struct bio *bio,
+-		unsigned int nr_segs, struct request **same_queue_rq);
+ bool blk_bio_list_merge(struct request_queue *q, struct list_head *list,
+ 			struct bio *bio, unsigned int nr_segs);
+ 
